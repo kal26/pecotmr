@@ -914,3 +914,71 @@ load_tsv_region <- function(sumstat_path, region = "", target = "", target_colum
 
   return(sumstats)
 }
+
+
+#' Split loaded twas_weights_results into batches based on maximum memory usage
+#' 
+#' @param twas_weights_results List of loaded gene data by load_twas_weights()
+#' @param meta_data_df Dataframe containing gene metadata with region_id and TSS columns
+#' @param max_memory_per_batch Maximum memory per batch in MB (default: 750)
+#' @return List of batches, where each batch contains a subset of twas_weights_results
+#' @export
+batch_load_twas_weights <- function(twas_weights_results, meta_data_df, max_memory_per_batch = 750) {
+  gene_names <- names(twas_weights_results)
+  if (length(gene_names) == 0) {
+    message("No genes in twas_weights_results.")
+    return(list())
+  }
+  
+  gene_memory_df <- data.frame(
+    gene_name = gene_names, memory_mb = sapply(gene_names, function(gene) {
+      as.numeric(object.size(twas_weights_results[[gene]])) / (1024^2) # Get object size in bytes and convert to MB
+    })
+  )
+  
+  # Merge with meta_data_df to get TSS information
+  gene_memory_df <- merge(gene_memory_df, meta_data_df[, c("region_id", "TSS")],  by.x = "gene_name", 
+                          by.y = "region_id", all.x = TRUE)
+  gene_memory_df <- gene_memory_df[order(gene_memory_df$TSS), ]
+  
+  # Check if we need to split into batches
+  total_memory_mb <- sum(gene_memory_df$memory_mb)
+  message("Total memory usage: ", round(total_memory_mb, 2), " MB")
+  if (total_memory_mb <= max_memory_per_batch) {
+    message("All genes fit within the memory limit. No need to split into batches.")
+    return(list(all_genes = twas_weights_results))
+  }
+  
+  # Create batches by adding genes until we reach the memory limit
+  batches <- list()
+  current_batch_genes <- character(0)
+  current_batch_memory <- 0
+  batch_index <- 1
+  
+  for (i in 1:nrow(gene_memory_df)) {
+    gene <- gene_memory_df$gene_name[i]
+    gene_memory <- gene_memory_df$memory_mb[i]
+    # If a single gene exceeds the memory limit, include it in its own batch
+    if (gene_memory > max_memory_per_batch) {
+      batches[[paste0("batch_", batch_index)]] <- twas_weights_results[gene]
+      batch_index <- batch_index + 1
+      next
+    }
+    # If adding this gene would exceed the memory limit, start a new batch
+    if (current_batch_memory + gene_memory > max_memory_per_batch && length(current_batch_genes) > 0) {
+      batches[[paste0("batch_", batch_index)]] <- twas_weights_results[current_batch_genes]
+      current_batch_genes <- character(0)
+      current_batch_memory <- 0
+      batch_index <- batch_index + 1
+    }
+    current_batch_genes <- c(current_batch_genes, gene)
+    current_batch_memory <- current_batch_memory + gene_memory
+  }
+  # Add the last batch if not empty
+  if (length(current_batch_genes) > 0) {
+    batches[[batch_index]] <- twas_weights_results[current_batch_genes]
+  }
+  message("Split into ", length(batches), " batches")
+  names(batches) <- NULL
+  return(batches)
+}
