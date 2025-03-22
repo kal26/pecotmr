@@ -45,7 +45,7 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
   }
 
   # Extract zt, sig_t, and sig_i_t
-  zt <- known_zscores$z
+  zt <- known_zscores$z[knowns]
   sig_t <- LD_matrix[knowns, knowns, drop = FALSE]
   sig_i_t <- LD_matrix[unknowns, knowns, drop = FALSE]
 
@@ -143,7 +143,7 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
     # Subset ref_panel and LD_matrix for this block
     block_indices <- match(block_variant_ids, ref_panel$variant_id)
     block_ref_panel <- ref_panel[block_indices, ]
-    block_LD_matrix <- LD_matrix[[block_id]]
+    block_LD_matrix <- LD_matrix$ld_matrices[[block_id]]
 
     # Check dimensions match
     if (nrow(block_LD_matrix) != nrow(block_ref_panel)) {
