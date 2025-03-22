@@ -173,6 +173,10 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
   nofilter_results <- lapply(results_list, function(x) x$result_nofilter)
   filter_results <- lapply(results_list, function(x) x$result_filter)
   ld_filtered_list <- lapply(results_list, function(x) x$LD_mat)
+  combined_LD_matrix <- create_combined_LD_matrix(
+    LD_matrices = ld_filtered_list,
+    variants = lapply(ld_filtered_list, colnames)
+  )
 
   # Combine into data frames
   result_nofilter <- dplyr::bind_rows(nofilter_results) %>% arrange(pos)
@@ -182,7 +186,7 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
   return(list(
     result_nofilter = result_nofilter,
     result_filter = result_filter,
-    LD_mat = ld_filtered_list
+    LD_mat = combined_LD_matrix
   ))
 }
 
