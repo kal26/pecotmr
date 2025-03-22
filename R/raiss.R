@@ -173,9 +173,10 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
   nofilter_results <- lapply(results_list, function(x) x$result_nofilter)
   filter_results <- lapply(results_list, function(x) x$result_filter)
   ld_filtered_list <- lapply(results_list, function(x) x$LD_mat)
+  variant_list <- lapply(ld_filtered_list, function(ld) data.frame(variants = colnames(ld)) )
   combined_LD_matrix <- create_combined_LD_matrix(
     LD_matrices = ld_filtered_list,
-    variants = lapply(ld_filtered_list, colnames)
+    variants = variant_list
   )
 
   # Combine into data frames
