@@ -144,6 +144,7 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
     block_indices <- match(block_variant_ids, ref_panel$variant_id)
     block_ref_panel <- ref_panel[block_indices, ]
     block_LD_matrix <- LD_matrix$ld_matrices[[block_id]]
+    block_known_zscores <- known_zscores %>% filter(variant_id %in% block_variant_ids)
 
     # Check dimensions match
     if (nrow(block_LD_matrix) != nrow(block_ref_panel)) {
@@ -152,7 +153,7 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
 
     # Process the block using the core function
     block_result <- raiss_single_matrix(
-      block_ref_panel, known_zscores, block_LD_matrix,
+      block_ref_panel, block_known_zscores, block_LD_matrix,
       lamb, rcond, R2_threshold, minimum_ld,
       verbose = FALSE
     )
@@ -170,8 +171,8 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
   }
 
   # Combine results from all blocks
-  nofilter_results <- lapply(results_list, function(x) x$result_nofilter)
-  filter_results <- lapply(results_list, function(x) x$result_filter)
+  nofilter_results <- results_list %>% lapply(function(x) x$result_nofilter) %>% bind_rows()
+  filter_results <- results_list %>% lapply(function(x) x$result_filter) %>% bind_rows()
   ld_filtered_list <- lapply(results_list, function(x) x$LD_mat)
   variant_list <- lapply(ld_filtered_list, function(ld) data.frame(variants = colnames(ld)) )
   combined_LD_matrix <- create_combined_LD_matrix(
