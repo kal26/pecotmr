@@ -319,14 +319,16 @@ create_combined_LD_matrix <- function(LD_matrices, variants) {
 load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL) {
   # Intersect LD metadata with specified regions using updated function
   intersected_LD_files <- get_regional_ld_meta(LD_meta_file_path, region)
+
   # Extract file paths for LD and bim files
   LD_file_paths <- intersected_LD_files$intersections$LD_file_paths
   bim_file_paths <- intersected_LD_files$intersections$bim_file_paths
+
   # Using a for loop here to allow for rm() in each loop to save memory
   extracted_LD_matrices_list <- list()
   extracted_LD_variants_list <- list()
-  # Get block metadata for tracking indices
-  block_meta <- intersected_LD_files$intersections[, c("chrom", "start", "end")]
+  block_sizes <- integer(length(LD_file_paths))
+  block_chroms <- character(length(LD_file_paths))
 
   # Process each LD block individually
   for (j in seq_along(LD_file_paths)) {
@@ -339,44 +341,60 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     )
     extracted_LD_matrices_list[[j]] <- extracted_LD_list$extracted_LD_matrix
     extracted_LD_variants_list[[j]] <- extracted_LD_list$extracted_LD_variants
+    block_sizes[j] <- nrow(extracted_LD_variants_list[[j]])
+    if (nrow(extracted_LD_variants_list[[j]]) > 0) {
+      block_chroms[j] <- as.character(extracted_LD_variants_list[[j]]$chrom[1])
+    } else {
+      # Use region chromosome as fallback for empty blocks
+      block_chroms[j] <- as.character(intersected_LD_files$region$chrom)
+    }
+
     # Remove large objects to free memory
     rm(LD_matrix_processed, extracted_LD_list)
   }
 
-  # Prepare to track indices in the combined matrix
-  variant_counts <- sapply(extracted_LD_variants_list, nrow)
-  cumulative_counts <- c(0, cumsum(variant_counts))
+  # Calculate matrix indices based on variant counts
+  cumulative_counts <- c(0, cumsum(block_sizes))
 
-  # Create block indices tracking dataframe
-  block_indices <- data.frame(
+  # Now create block_metadata with all the information we've accumulated
+  block_metadata <- data.frame(
     block_id = seq_along(LD_file_paths),
+    chrom = block_chroms,
+    size = block_sizes,
     start_idx = cumulative_counts[-length(cumulative_counts)] + 1,
     end_idx = cumulative_counts[-1],
-    chrom = block_meta$chrom,
-    block_start = block_meta$start,
-    block_end = block_meta$end
+    stringsAsFactors = FALSE
   )
 
+  # Create combined LD matrix
   combined_LD_matrix <- create_combined_LD_matrix(
     LD_matrices = extracted_LD_matrices_list,
     variants = extracted_LD_variants_list
   )
+
   # Remove large objects to free memory
   rm(extracted_LD_matrices_list)
+
+  # Create reference panel
   ref_panel <- do.call(rbind, lapply(strsplit(rownames(combined_LD_matrix), ":"), function(x) {
     data.frame(chrom = x[1], pos = as.integer(x[2]), A2 = x[3], A1 = x[4])
   }))
+
   merged_variant_list <- do.call(rbind, extracted_LD_variants_list)
   ref_panel$variant_id <- rownames(combined_LD_matrix)
-  if ("variance" %in% colnames(merged_variant_list)) ref_panel$variance <- merged_variant_list$variance[match(rownames(combined_LD_matrix), merged_variant_list$variants)]
 
-  # LD list for region with added block indices
+  if ("variance" %in% colnames(merged_variant_list)) {
+    ref_panel$variance <- merged_variant_list$variance[match(rownames(combined_LD_matrix), merged_variant_list$variants)]
+  }
+
+  # Return the combined LD list
   combined_LD_list <- list(
     combined_LD_variants = rownames(combined_LD_matrix),
     combined_LD_matrix = combined_LD_matrix,
     ref_panel = ref_panel,
-    block_indices = block_indices
+    block_metadata = block_metadata
   )
+
   return(combined_LD_list)
 }
 
@@ -451,7 +469,7 @@ partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
                                 min_merged_block_size = 50, max_merged_block_size = 1000) {
   # Extract components from ld_data
   combined_matrix <- ld_data$combined_LD_matrix
-  block_indices <- ld_data$block_indices
+  block_metadata <- ld_data$block_metadata
   variant_ids <- ld_data$combined_LD_variants
 
   # Error if matrix is empty
@@ -460,39 +478,35 @@ partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
   }
 
   # If only one block, return the original matrix
-  if (nrow(block_indices) == 1) {
+  if (nrow(block_metadata) == 1) {
     return(combined_matrix)
   }
 
   # Optionally merge small blocks
   if (merge_small_blocks) {
-    # Find blocks smaller than min_merged_block_size
-    block_sizes <- block_indices$end_idx - block_indices$start_idx + 1
-    small_blocks <- which(block_sizes < min_merged_block_size)
+    # Find blocks smaller than min_merged_block_size based on their size
+    small_blocks <- which(block_metadata$size < min_merged_block_size)
 
     if (length(small_blocks) > 0) {
       # Strategy: Merge with adjacent blocks if on same chromosome
-      new_block_indices <- block_indices
+      new_block_metadata <- block_metadata
       current_block <- 1
 
-      while (current_block < nrow(new_block_indices)) {
-        current_size <- new_block_indices$end_idx[current_block] - new_block_indices$start_idx[current_block] + 1
-
+      while (current_block < nrow(new_block_metadata)) {
         # If current block is small and next block is on same chromosome, consider merging
-        if (current_size < min_merged_block_size &&
-          current_block < nrow(new_block_indices) &&
-          new_block_indices$chrom[current_block] == new_block_indices$chrom[current_block + 1]) {
+        if (new_block_metadata$size[current_block] < min_merged_block_size &&
+          current_block < nrow(new_block_metadata) &&
+          new_block_metadata$chrom[current_block] == new_block_metadata$chrom[current_block + 1]) {
           # Check if merging would exceed max_merged_block_size
-          next_size <- new_block_indices$end_idx[current_block + 1] - new_block_indices$start_idx[current_block + 1] + 1
-          combined_size <- current_size + next_size
+          combined_size <- new_block_metadata$size[current_block] + new_block_metadata$size[current_block + 1]
 
           if (combined_size <= max_merged_block_size) {
             # Merge blocks
-            new_block_indices$end_idx[current_block] <- new_block_indices$end_idx[current_block + 1]
-            new_block_indices$block_end[current_block] <- new_block_indices$block_end[current_block + 1]
+            new_block_metadata$end_idx[current_block] <- new_block_metadata$end_idx[current_block + 1]
+            new_block_metadata$size[current_block] <- combined_size
 
             # Remove the merged block
-            new_block_indices <- new_block_indices[-1 * (current_block + 1), ]
+            new_block_metadata <- new_block_metadata[-1 * (current_block + 1), ]
 
             # Don't increment current_block as we may need to continue merging
           } else {
@@ -505,20 +519,20 @@ partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
         }
       }
 
-      # Update block indices
-      block_indices <- new_block_indices
+      # Update block metadata
+      block_metadata <- new_block_metadata
 
       # Renumber block IDs
-      block_indices$block_id <- seq_len(nrow(block_indices))
+      block_metadata$block_id <- seq_len(nrow(block_metadata))
     }
   }
 
   # If after merging we only have one block, return the original matrix
-  if (nrow(block_indices) == 1) {
+  if (nrow(block_metadata) == 1) {
     return(combined_matrix)
   }
 
-  # Partition the matrix based on block indices
+  # Partition the matrix based on block metadata
   ld_matrices <- list()
   variant_mapping <- data.frame(
     variant_id = character(),
@@ -526,18 +540,9 @@ partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
     stringsAsFactors = FALSE
   )
 
-  block_metadata <- data.frame(
-    block_id = integer(),
-    size = integer(),
-    chrom = character(),
-    start_pos = integer(),
-    end_pos = integer(),
-    stringsAsFactors = FALSE
-  )
-
-  for (i in seq_len(nrow(block_indices))) {
-    start_idx <- block_indices$start_idx[i]
-    end_idx <- block_indices$end_idx[i]
+  for (i in seq_len(nrow(block_metadata))) {
+    start_idx <- block_metadata$start_idx[i]
+    end_idx <- block_metadata$end_idx[i]
 
     # Skip empty blocks (should not happen after merging)
     if (end_idx < start_idx) next
@@ -558,17 +563,6 @@ partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
       stringsAsFactors = FALSE
     )
     variant_mapping <- rbind(variant_mapping, block_mapping)
-
-    # Update block metadata
-    block_meta <- data.frame(
-      block_id = i,
-      size = length(block_variants),
-      chrom = block_indices$chrom[i],
-      start_pos = block_indices$block_start[i],
-      end_pos = block_indices$block_end[i],
-      stringsAsFactors = FALSE
-    )
-    block_metadata <- rbind(block_metadata, block_meta)
   }
 
   # Return the partitioned data as a list
