@@ -120,7 +120,7 @@ fsusie_get_cs <- function(fSuSiE.obj, X, requested_coverage = 0.95) {
 
 fsusie_wrapper <- function(X, Y, pos, L, prior, max_SNP_EM, cov_lev, min.purity, max_scale, ...) {
   # Make sure fsusieR installed
-  if (! requireNamespace("fsusieR", quietly = TRUE)) {
+  if (!requireNamespace("fsusieR", quietly = TRUE)) {
     stop("To use this function, please install fsusieR: https://github.com/stephenslab/fsusieR")
   }
   # Run fsusie

@@ -157,7 +157,7 @@ susie_rss_wrapper <- function(z, R, n = NULL, var_y = NULL, L = 10, max_L = 30, 
   }
   if (L == max_L) {
     return(susie_rss(
-      z = z, R = R, var_y = var_y, n = n, L = L, 
+      z = z, R = R, var_y = var_y, n = n, L = L,
       correct_zR_discrepancy = zR_discrepancy_correction, coverage = coverage, ...
     ))
   }

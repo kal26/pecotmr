@@ -52,7 +52,7 @@ univariate_analysis_pipeline <- function(
     # fine-mapping results summary
     signal_cutoff = 0.025,
     coverage = c(0.95, 0.7, 0.5),
-    finemapping_extra_opts = list(refine=TRUE),
+    finemapping_extra_opts = list(refine = TRUE),
     # TWAS weights and CV for TWAS weights
     twas_weights = TRUE,
     sample_partition = NULL,
@@ -110,8 +110,8 @@ univariate_analysis_pipeline <- function(
 
   # SuSiE analysis with optimization
   message("Fitting SuSiE model on input data with L optimization...")
-  base_susie_args <- list(X=X, y=Y, init_L = init_L, max_L = max_L, l_step = l_step, coverage = coverage[1])
-  susie_args <- modifyList(finemapping_extra_opts, base_susie_args)  # base args takes precedence
+  base_susie_args <- list(X = X, y = Y, init_L = init_L, max_L = max_L, l_step = l_step, coverage = coverage[1])
+  susie_args <- modifyList(finemapping_extra_opts, base_susie_args) # base args takes precedence
   res$susie_fitted <- do.call(susie_wrapper, susie_args)
 
   # Process SuSiE results
@@ -184,7 +184,7 @@ rss_analysis_pipeline <- function(
   rss_input <- load_rss_data(
     sumstat_path = sumstat_path, column_file_path = column_file_path,
     n_sample = n_sample, n_case = n_case, n_control = n_control, target = target, region = region,
-      target_column_index = target_column_index, comment_string = comment_string
+    target_column_index = target_column_index, comment_string = comment_string
   )
 
   sumstats <- rss_input$sumstats

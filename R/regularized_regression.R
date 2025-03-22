@@ -420,7 +420,7 @@ init_prior_sd <- function(X, y, n = 30) {
 #' @export
 glmnet_weights <- function(X, y, alpha) {
   # Check if glmnet is installed
-  if (! requireNamespace("glmnet", quietly = TRUE)) {
+  if (!requireNamespace("glmnet", quietly = TRUE)) {
     stop("To use this function, please install glmnet: https://cran.r-project.org/web/packages/glmnet/index.html")
   }
   eff.wgt <- matrix(0, ncol = 1, nrow = ncol(X))
@@ -443,7 +443,7 @@ lasso_weights <- function(X, y) glmnet_weights(X, y, 1)
 #' @export
 mrash_weights <- function(X, y, init_prior_sd = TRUE, ...) {
   # Make sure mr.ash is installed
-  if (! requireNamespace("mr.ash.alpha", quietly = TRUE)) {
+  if (!requireNamespace("mr.ash.alpha", quietly = TRUE)) {
     stop("To use this function, please install mr.ash: https://github.com/stephenslab/mr.ash.alpha")
   }
   args_list <- list(...)
@@ -480,7 +480,7 @@ mrash_weights <- function(X, y, init_prior_sd = TRUE, ...) {
 #' @export
 bayes_alphabet_weights <- function(X, y, method, Z = NULL, nit = 5000, nburn = 1000, nthin = 5, ...) {
   # Make sure qgg is installed
-  if (! requireNamespace("qgg", quietly = TRUE)) {
+  if (!requireNamespace("qgg", quietly = TRUE)) {
     stop("To use this function, please install qgg: https://cran.r-project.org/web/packages/qgg/index.html")
   }
   # check for identical row lengths of response and genotype
@@ -618,9 +618,8 @@ gbayes_rss <- function(sumstats = NULL, LD = NULL, variant_ids = NULL, nit = 100
                        lambda = NULL, h2 = NULL, pi = 0.001, updateB = TRUE, updateG = TRUE, updateE = TRUE,
                        updatePi = TRUE, adjustE = TRUE, nug = 4, nub = 4, nue = 4, mask = NULL, ve_prior = NULL,
                        vg_prior = NULL, algorithm = "mcmc", tol = 0.001, nit_local = NULL, nit_global = NULL) {
-
   # Make sure qgg is installed
-  if (! requireNamespace("qgg", quietly = TRUE)) {
+  if (!requireNamespace("qgg", quietly = TRUE)) {
     stop("To use this function, please install qgg: https://cran.r-project.org/web/packages/qgg/index.html")
   }
   # Check methods

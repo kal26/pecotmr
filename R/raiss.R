@@ -12,30 +12,29 @@
 #' @return A list containing filtered and unfiltered results, and filtered LD matrix.
 #' @importFrom dplyr arrange
 #' @export
-raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01, rcond = 0.01, 
-                               R2_threshold = 0.6, minimum_ld = 5, verbose = TRUE) {
-  
+raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01, rcond = 0.01,
+                                R2_threshold = 0.6, minimum_ld = 5, verbose = TRUE) {
   # Check that ref_panel and known_zscores are both increasing in terms of pos
   if (is.unsorted(ref_panel$pos) || is.unsorted(known_zscores$pos)) {
     stop("ref_panel and known_zscores must be in increasing order of pos.")
   }
-  
+
   # Convert LD_matrix to matrix if it's a data frame
   if (is.data.frame(LD_matrix)) {
     LD_matrix <- as.matrix(LD_matrix)
   }
-  
+
   # Define knowns and unknowns
   knowns_id <- intersect(known_zscores$variant_id, ref_panel$variant_id)
   knowns <- which(ref_panel$variant_id %in% knowns_id)
   unknowns <- which(!ref_panel$variant_id %in% knowns_id)
-  
+
   # Handle edge cases
   if (length(knowns) == 0) {
     if (verbose) message("No known variants found, cannot perform imputation.")
     return(NULL)
   }
-  
+
   if (length(unknowns) == 0) {
     if (verbose) message("No unknown variants to impute, returning known variants.")
     return(list(
@@ -44,28 +43,28 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
       LD_mat = LD_matrix
     ))
   }
-  
+
   # Extract zt, sig_t, and sig_i_t
   zt <- known_zscores$z
   sig_t <- LD_matrix[knowns, knowns, drop = FALSE]
   sig_i_t <- LD_matrix[unknowns, knowns, drop = FALSE]
-  
+
   # Call raiss_model
   results <- raiss_model(zt, sig_t, sig_i_t, lamb, rcond)
-  
+
   # Format the results
   results <- format_raiss_df(results, ref_panel, unknowns)
-  
+
   # Filter output
   results <- filter_raiss_output(results, R2_threshold, minimum_ld, verbose)
-  
+
   # Merge with known z-scores
   result_nofilter <- merge_raiss_df(results$zscores_nofilter, known_zscores) %>% arrange(pos)
   result_filter <- merge_raiss_df(results$zscores, known_zscores) %>% arrange(pos)
-  
+
   # Filter out variants not included in the imputation result
   filtered_out_variant <- setdiff(ref_panel$variant_id, result_filter$variant_id)
-  
+
   # Update the LD matrix excluding filtered variants
   LD_extract_filtered <- if (length(filtered_out_variant) > 0) {
     filtered_out_id <- match(filtered_out_variant, ref_panel$variant_id)
@@ -73,7 +72,7 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
   } else {
     as.matrix(LD_matrix)
   }
-  
+
   # Return results
   return(list(
     result_nofilter = result_nofilter,
@@ -90,7 +89,7 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
 #' Noah Zaitlen, et al., titled "Fast and accurate imputation of summary
 #' statistics enhances evidence of functional enrichment", published in
 #' Bioinformatics in 2014.
-#' 
+#'
 #' This function can process either a single LD matrix or a list of LD matrices for different blocks.
 #' For a list of matrices, it processes each block separately and combines the results.
 #'
@@ -107,78 +106,78 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
 #' @return A list containing filtered and unfiltered results, and filtered LD matrix.
 #' @importFrom dplyr arrange bind_rows
 #' @export
-raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, lamb = 0.01, rcond = 0.01, 
-                 R2_threshold = 0.6, minimum_ld = 5, verbose = TRUE) {
-  
+raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, lamb = 0.01, rcond = 0.01,
+                  R2_threshold = 0.6, minimum_ld = 5, verbose = TRUE) {
   # Check if LD_matrix is a list or a single matrix
   is_list_of_matrices <- is.list(LD_matrix) && !is.data.frame(LD_matrix) && !is.matrix(LD_matrix)
-  
+
   # For single matrix, call the core function directly
   if (!is_list_of_matrices) {
     if (verbose) message("Processing single LD matrix...")
     return(raiss_single_matrix(
-      ref_panel, known_zscores, LD_matrix, 
+      ref_panel, known_zscores, LD_matrix,
       lamb, rcond, R2_threshold, minimum_ld, verbose
     ))
   }
-  
+
   # For list of matrices, process each block
   if (is.null(variant_indices)) {
     stop("variant_indices must be provided when LD_matrix is a list.")
   }
-  
+
   if (verbose) message("Processing multiple LD blocks...")
-  
+
   # Prepare list to collect results from each block
   results_list <- list()
-  
+
   # Get unique block IDs
   block_ids <- unique(variant_indices$block_id)
-  
+
   # Process each block
   for (block_id in block_ids) {
     if (verbose) message(paste("Processing block", block_id, "of", length(block_ids)))
-    
+
     # Get variants in this block
     block_variant_ids <- variant_indices$variant_id[variant_indices$block_id == block_id]
-    
+
     # Subset ref_panel and LD_matrix for this block
     block_indices <- match(block_variant_ids, ref_panel$variant_id)
     block_ref_panel <- ref_panel[block_indices, ]
     block_LD_matrix <- LD_matrix[[block_id]]
-    
+
     # Check dimensions match
     if (nrow(block_LD_matrix) != nrow(block_ref_panel)) {
       stop(paste("Block", block_id, ": LD matrix dimension does not match number of variants in reference panel"))
     }
-    
+
     # Process the block using the core function
     block_result <- raiss_single_matrix(
       block_ref_panel, known_zscores, block_LD_matrix,
-      lamb, rcond, R2_threshold, minimum_ld, verbose = FALSE
+      lamb, rcond, R2_threshold, minimum_ld,
+      verbose = FALSE
     )
-    
+
     # Skip if block returned NULL (no known variants)
     if (!is.null(block_result)) {
       results_list[[block_id]] <- block_result
     }
   }
-  
+
   # If no valid blocks were processed
   if (length(results_list) == 0) {
     if (verbose) message("No blocks could be processed. Check that known_zscores overlap with variants in the blocks.")
     return(NULL)
   }
-  
+
   # Combine results from all blocks
   nofilter_results <- lapply(results_list, function(x) x$result_nofilter)
   filter_results <- lapply(results_list, function(x) x$result_filter)
   ld_filtered_list <- lapply(results_list, function(x) x$LD_mat)
-  
+
   # Combine into data frames
   result_nofilter <- dplyr::bind_rows(nofilter_results) %>% arrange(pos)
   result_filter <- dplyr::bind_rows(filter_results) %>% arrange(pos)
-  
+
   # Return combined results
   return(list(
     result_nofilter = result_nofilter,

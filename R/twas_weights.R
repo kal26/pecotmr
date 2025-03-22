@@ -479,21 +479,23 @@ twas_weights_pipeline <- function(X,
       weight_methods$susie_weights <- list(refine = FALSE, init_L = max_L, max_L = max_L)
     }
     if (is.null(cv_weight_methods)) {
-        # Filter function to exclude methods with all zero weights and track removed methods
-        is_all_zero <- sapply(res$twas_weights, function(weights) all(weights == 0, na.rm = TRUE))
+      # Filter function to exclude methods with all zero weights and track removed methods
+      is_all_zero <- sapply(res$twas_weights, function(weights) all(weights == 0, na.rm = TRUE))
 
-        # Identify removed methods
-        removed_methods <- names(weight_methods)[is_all_zero]
-                              
-        # Issue a warning if any methods have been removed
-        if (length(removed_methods) > 0) {
-            warning(sprintf("Methods %s are removed from CV because all their weights are zeros.", 
-                    paste(removed_methods, collapse=", ")))
-        } 
-        # Extract the filtered methods retaining their specific configurations
-        cv_weight_methods <- names(weight_methods)[!is_all_zero]
+      # Identify removed methods
+      removed_methods <- names(weight_methods)[is_all_zero]
+
+      # Issue a warning if any methods have been removed
+      if (length(removed_methods) > 0) {
+        warning(sprintf(
+          "Methods %s are removed from CV because all their weights are zeros.",
+          paste(removed_methods, collapse = ", ")
+        ))
+      }
+      # Extract the filtered methods retaining their specific configurations
+      cv_weight_methods <- names(weight_methods)[!is_all_zero]
     }
-    
+
     variants_for_cv <- c()
     if (max_cv_variants <= 0) {
       max_cv_variants <- Inf
@@ -635,18 +637,20 @@ twas_multivariate_weights_pipeline <- function(
         verbosity = verbose
       )
     )
-      
+
     # Filter function to exclude methods with all zero weights and track removed methods
     is_all_zero <- sapply(twas_weights_res, function(weights) all(weights == 0, na.rm = TRUE))
 
     # Identify removed methods
     removed_methods <- names(weight_methods)[is_all_zero]
-                              
+
     # Issue a warning if any methods have been removed
     if (length(removed_methods) > 0) {
-            warning(sprintf("Methods %s are removed from CV because all their weights are zeros.", 
-                    paste(removed_methods, collapse=", ")))
-    } 
+      warning(sprintf(
+        "Methods %s are removed from CV because all their weights are zeros.",
+        paste(removed_methods, collapse = ", ")
+      ))
+    }
 
     # Extract the filtered methods retaining their specific configurations
     weight_methods <- weight_methods[!is_all_zero]

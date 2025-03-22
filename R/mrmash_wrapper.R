@@ -95,13 +95,12 @@ mrmash_wrapper <- function(X,
                            max_iter = 5000,
                            tol = 0.01,
                            verbose = FALSE, ...) {
-
   # Make sure glmnet is installed
-  if (! requireNamespace("glmnet", quietly = TRUE)) {
+  if (!requireNamespace("glmnet", quietly = TRUE)) {
     stop("To use this function, please install glmnet: https://cran.r-project.org/web/packages/glmnet/index.html")
   }
   # Make sure mr.mash.alpha is installed
-  if (! requireNamespace("mr.mash.alpha", quietly = TRUE)) {
+  if (!requireNamespace("mr.mash.alpha", quietly = TRUE)) {
     stop("To use this function, please install mr.mash.alpha: https://github.com/stephenslab/mr.mash.alpha")
   }
   # Check input data

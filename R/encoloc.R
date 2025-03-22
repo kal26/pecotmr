@@ -121,7 +121,7 @@ load_and_extract_ld_matrix <- function(ld_meta_file_path, analysis_region, varia
 
 #' Function to calculate purity
 #' @noRd
-calculate_purity <- function(variants, ext_ld, squared=FALSE) {
+calculate_purity <- function(variants, ext_ld, squared = FALSE) {
   # This is a placeholder for calculating purity, adjust as per your actual function
   purity <- matrix(susieR:::get_purity(variants, Xcorr = ext_ld, squared), 1, 3)
   purity

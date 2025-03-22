@@ -92,7 +92,7 @@ multivariate_analysis_pipeline <- function(
     cv_threads = 1,
     verbose = 0) {
   # Make sure mvsusieR is installed
-  if (! requireNamespace("mvsusieR", quietly = TRUE)) {
+  if (!requireNamespace("mvsusieR", quietly = TRUE)) {
     stop("To use this function, please install mvsusieR: https://github.com/stephenslab/mvsusieR")
   }
   # Skip conditions based on univariate PIP values

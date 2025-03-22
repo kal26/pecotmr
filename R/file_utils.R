@@ -41,7 +41,7 @@ read_fam <- function(bed) {
 # open pgen/pvar PLINK 2 data format
 open_pgen <- function(pgenf) {
   # Make sure pgenlibr is installed
-  if (! requireNamespace("pgenlibr", quietly = TRUE)) {
+  if (!requireNamespace("pgenlibr", quietly = TRUE)) {
     stop("To use this function, please install pgenlibr: https://cran.r-project.org/web/packages/pgenlibr/index.html")
   }
   return(pgenlibr::NewPgen(pgenf))
@@ -50,7 +50,7 @@ open_pgen <- function(pgenf) {
 # open bed/bim/fam: A PLINK 1 .bed is a valid .pgen
 open_bed <- function(bed) {
   # Make sure pgenlibr is installed
-  if (! requireNamespace("pgenlibr", quietly = TRUE)) {
+  if (!requireNamespace("pgenlibr", quietly = TRUE)) {
     stop("To use this function, please install pgenlibr: https://cran.r-project.org/web/packages/pgenlibr/index.html")
   }
   raw_s_ct <- nrow(read_fam(bed))
@@ -59,7 +59,7 @@ open_bed <- function(bed) {
 
 read_pgen <- function(pgen, variantidx = NULL, meanimpute = F) {
   # Make sure pgenlibr is installed
-  if (! requireNamespace("pgenlibr", quietly = TRUE)) {
+  if (!requireNamespace("pgenlibr", quietly = TRUE)) {
     stop("To use this function, please install pgenlibr: https://cran.r-project.org/web/packages/pgenlibr/index.html")
   }
   if (is.null(variantidx)) {
@@ -131,7 +131,7 @@ NoSNPsError <- function(message) {
 #' @export
 load_genotype_region <- function(genotype, region = NULL, keep_indel = TRUE, keep_variants_path = NULL) {
   # Make sure snpStats is installed
-  if (! requireNamespace("snpStats", quietly = TRUE)) {
+  if (!requireNamespace("snpStats", quietly = TRUE)) {
     stop("To use this function, please install snpStats: https://bioconductor.org/packages/release/bioc/html/snpStats.html")
   }
   if (!is.null(region)) {
@@ -782,16 +782,18 @@ load_rss_data <- function(sumstat_path, column_file_path, subset = TRUE, n_sampl
                           region = "", target_column_index = "", comment_string = "#") {
   # Read and preprocess column mapping
   if (is.null(comment_string)) {
-    column_data <- read.table(column_file_path, 
-                              header = FALSE, sep = ":", 
-                              comment.char = "",  # This tells R not to treat any character as comment
-                              stringsAsFactors = FALSE) %>%
+    column_data <- read.table(column_file_path,
+      header = FALSE, sep = ":",
+      comment.char = "", # This tells R not to treat any character as comment
+      stringsAsFactors = FALSE
+    ) %>%
       rename(standard = V1, original = V2)
   } else {
-    column_data <- read.table(column_file_path, 
-                              header = FALSE, sep = ":", 
-                              comment.char = comment_string,
-                              stringsAsFactors = FALSE) %>%
+    column_data <- read.table(column_file_path,
+      header = FALSE, sep = ":",
+      comment.char = comment_string,
+      stringsAsFactors = FALSE
+    ) %>%
       rename(standard = V1, original = V2)
   }
 
@@ -868,10 +870,10 @@ load_rss_data <- function(sumstat_path, column_file_path, subset = TRUE, n_sampl
 load_tsv_region <- function(sumstat_path, region = "", target = "", target_column_index = "") {
   sumstats <- NULL
   cmd <- NULL
-  if(!is.null(region)){
-      if (grepl("^chr", region)) {
-          region <- sub("^chr", "", region)
-        }
+  if (!is.null(region)) {
+    if (grepl("^chr", region)) {
+      region <- sub("^chr", "", region)
+    }
   }
   if (grepl(".gz$", sumstat_path)) {
     if (is.null(sumstats) || nrow(sumstats) == 0) {
@@ -917,7 +919,7 @@ load_tsv_region <- function(sumstat_path, region = "", target = "", target_colum
 
 
 #' Split loaded twas_weights_results into batches based on maximum memory usage
-#' 
+#'
 #' @param twas_weights_results List of loaded gene data by load_twas_weights()
 #' @param meta_data_df Dataframe containing gene metadata with region_id and TSS columns
 #' @param max_memory_per_batch Maximum memory per batch in MB (default: 750)
@@ -929,18 +931,20 @@ batch_load_twas_weights <- function(twas_weights_results, meta_data_df, max_memo
     message("No genes in twas_weights_results.")
     return(list())
   }
-  
+
   gene_memory_df <- data.frame(
     gene_name = gene_names, memory_mb = sapply(gene_names, function(gene) {
       as.numeric(object.size(twas_weights_results[[gene]])) / (1024^2) # Get object size in bytes and convert to MB
     })
   )
-  
+
   # Merge with meta_data_df to get TSS information
-  gene_memory_df <- merge(gene_memory_df, meta_data_df[, c("region_id", "TSS")],  by.x = "gene_name", 
-                          by.y = "region_id", all.x = TRUE)
+  gene_memory_df <- merge(gene_memory_df, meta_data_df[, c("region_id", "TSS")],
+    by.x = "gene_name",
+    by.y = "region_id", all.x = TRUE
+  )
   gene_memory_df <- gene_memory_df[order(gene_memory_df$TSS), ]
-  
+
   # Check if we need to split into batches
   total_memory_mb <- sum(gene_memory_df$memory_mb)
   message("Total memory usage: ", round(total_memory_mb, 2), " MB")
@@ -948,13 +952,13 @@ batch_load_twas_weights <- function(twas_weights_results, meta_data_df, max_memo
     message("All genes fit within the memory limit. No need to split into batches.")
     return(list(all_genes = twas_weights_results))
   }
-  
+
   # Create batches by adding genes until we reach the memory limit
   batches <- list()
   current_batch_genes <- character(0)
   current_batch_memory <- 0
   batch_index <- 1
-  
+
   for (i in 1:nrow(gene_memory_df)) {
     gene <- gene_memory_df$gene_name[i]
     gene_memory <- gene_memory_df$memory_mb[i]

@@ -913,10 +913,10 @@ merge_mash_data <- function(res_data, one_data) {
 
 #' @export
 mash_pipeline <- function(mash_input, alpha, residual_correlation = NULL, unconstrained.update = "ted", set_seed = 999) {
-  if (! requireNamespace("mashr", quietly = TRUE)) {
+  if (!requireNamespace("mashr", quietly = TRUE)) {
     stop("To use this function, please install mashr: https://cran.r-project.org/web/packages/mashr/index.html")
   }
-  if (! requireNamespace("flashier", quietly = TRUE)) {
+  if (!requireNamespace("flashier", quietly = TRUE)) {
     stop("To use this function, please install flashier: https://github.com/willwerscheid/flashier")
   }
   set.seed(set_seed)

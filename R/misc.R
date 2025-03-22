@@ -25,7 +25,7 @@ pval_acat <- function(pvals) {
 
 pval_hmp <- function(pvals) {
   # Make sure harmonicmeanp is installed
-  if (! requireNamespace("harmonicmeanp", quietly = TRUE)) {
+  if (!requireNamespace("harmonicmeanp", quietly = TRUE)) {
     stop("To use this function, please install harmonicmeanp: https://cran.r-project.org/web/packages/harmonicmeanp/index.html")
   }
   # https://search.r-project.org/CRAN/refmans/harmonicmeanp/html/pLandau.html
@@ -52,7 +52,7 @@ pval_global <- function(pvals, comb_method = "HMP", naive = FALSE) {
 
 compute_qvalues <- function(pvalues) {
   # Make sure qvalue is installed
-  if (! requireNamespace("qvalue", quietly = TRUE)) {
+  if (!requireNamespace("qvalue", quietly = TRUE)) {
     stop("To use this function, please install qvalue: https://www.bioconductor.org/packages/release/bioc/html/qvalue.html")
   }
   tryCatch(
@@ -164,30 +164,30 @@ filter_X <- function(X, missing_rate_thresh, maf_thresh, var_thresh = 0, maf = N
   tol_variants <- ncol(X)
   if (!is.null(missing_rate_thresh) && missing_rate_thresh < 1.0) {
     rm_col <- which(apply(X, 2, compute_missing) > missing_rate_thresh)
-    if (length(rm_col)) X <- X[, -rm_col, drop=F]
+    if (length(rm_col)) X <- X[, -rm_col, drop = F]
   }
-  
+
   # Check if non-NA values are valid genotypes before MAF filtering
   if (!is.null(maf_thresh) && maf_thresh > 0.0) {
     valid_genotypes <- all(sapply(1:ncol(X), function(i) {
-      x <- X[!is.na(X[,i]), i]
-      all(x %in% c(0,1,2))
+      x <- X[!is.na(X[, i]), i]
+      all(x %in% c(0, 1, 2))
     }))
-    
+
     if (valid_genotypes || !is.null(maf)) {
       rm_col <- if (!is.null(maf)) which(maf <= maf_thresh) else which(apply(X, 2, compute_maf) <= maf_thresh)
-      if (length(rm_col)) X <- X[, -rm_col, drop=F]
+      if (length(rm_col)) X <- X[, -rm_col, drop = F]
     } else {
       message("Skipping MAF filtering as X does not appear to be 0/1/2 matrix, and no external MAF information is provided")
     }
   }
-  
+
   rm_col <- which(apply(X, 2, is_zero_variance))
-  if (length(rm_col)) X <- X[, -rm_col, drop=F]
+  if (length(rm_col)) X <- X[, -rm_col, drop = F]
   X <- mean_impute(X)
   if (var_thresh > 0) {
     rm_col <- if (!is.null(X_variance)) which(X_variance < var_thresh) else which(colVars(X) < var_thresh)
-    if (length(rm_col)) X <- X[, -rm_col, drop=F]
+    if (length(rm_col)) X <- X[, -rm_col, drop = F]
   }
   message(paste0(tol_variants - ncol(X), " out of ", tol_variants, " total variants dropped due to quality control on X matrix."))
   return(X)

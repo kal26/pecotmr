@@ -29,7 +29,7 @@ qr_screen <- function(
     X, Y, Z = NULL, tau.list = seq(0.05, 0.95, by = 0.05),
     screen_threshold = 0.05, screen_method = "qvalue", top_count = 10, top_percent = 15) {
   # Make sure quantreg is installed
-  if (! requireNamespace("quantreg", quietly = TRUE)) {
+  if (!requireNamespace("quantreg", quietly = TRUE)) {
     stop("To use this function, please install quantreg: https://cran.r-project.org/web/packages/quantreg/index.html")
   }
   p <- ncol(X)
@@ -288,7 +288,7 @@ multicontext_ld_clumping <- function(X, qr_results, maf_list = NULL, ld_clump_r2
 #' @export
 perform_qr_analysis <- function(X, Y, Z = NULL, tau_values = seq(0.05, 0.95, by = 0.05)) {
   # Make sure quantreg is installed
-  if (! requireNamespace("quantreg", quietly = TRUE)) {
+  if (!requireNamespace("quantreg", quietly = TRUE)) {
     stop("To use this function, please install quantreg: https://cran.r-project.org/web/packages/quantreg/index.html")
   }
   # Convert Y and X to matrices if they aren't already
@@ -422,7 +422,7 @@ check_remove_highcorr_snp <- function(X = X, C = C, strategy = c("correlation", 
   # Combine the design matrix with X (SNPs) and C (covariates), keeping C without column names
   X_design <- cbind(1, X, C) # Add an intercept column (1)
   colnames_X_design <- c("Intercept", colnames(X)) # Assign column names only to X (SNPs) part
-  
+
   # Assign column names only to the X part, leaving C without names
   colnames(X_design)[1:(length(colnames_X_design))] <- colnames_X_design
 
@@ -432,33 +432,33 @@ check_remove_highcorr_snp <- function(X = X, C = C, strategy = c("correlation", 
 
   # Skip remove_highcorr_snp if removing all problematic columns doesn't achieve full rank
   skip_remove_highcorr <- FALSE
-  
+
   # First check: Try removing all problematic columns at once
   if (matrix_rank < ncol(X_design)) {
     message("Design matrix is not full rank, identifying all problematic columns...")
-    
+
     # QR decomposition to identify linearly dependent columns
     qr_decomp <- qr(X_design)
     R <- qr_decomp$rank
     Q <- qr_decomp$pivot
-    
+
     # Get all problematic columns
     problematic_cols <- Q[(R + 1):ncol(X_design)]
     problematic_colnames <- colnames(X_design)[problematic_cols]
     problematic_colnames <- problematic_colnames[problematic_colnames %in% colnames(X)]
-    
+
     if (length(problematic_colnames) > 0) {
       message("Attempting to remove all problematic columns at once: ", paste(problematic_colnames, collapse = ", "))
-      
+
       # Remove all problematic columns at once
       X_temp <- X[, !(colnames(X) %in% problematic_colnames), drop = FALSE]
       X_design_temp <- cbind(1, X_temp, C)
       colnames_X_design_temp <- c("Intercept", colnames(X_temp))
       colnames(X_design_temp)[1:length(colnames_X_design_temp)] <- colnames_X_design_temp
-      
+
       # Check if removing all problematic columns achieves full rank
       matrix_rank_temp <- qr(X_design_temp)$rank
-      
+
       if (matrix_rank_temp == ncol(X_design_temp)) {
         message("Achieved full rank by removing all problematic columns at once. Proceeding with original logic...")
       } else {
@@ -484,7 +484,7 @@ check_remove_highcorr_snp <- function(X = X, C = C, strategy = c("correlation", 
         message("No more problematic SNP columns found in X. Breaking the loop.")
         break
       }
-      
+
       message("Problematic SNP columns identified: ", paste(problematic_colnames, collapse = ", "))
       X <- remove_highcorr_snp(X, problematic_colnames, strategy = strategy, response = response)
 
@@ -525,7 +525,7 @@ check_remove_highcorr_snp <- function(X = X, C = C, strategy = c("correlation", 
   if (iteration == max_iterations) {
     warning("Maximum iterations reached. The design matrix may still not be full rank.")
   }
-  
+
   if (ncol(X) == 1 && initial_ncol == 1) {
     colnames(X) <- original_colnames
   }
@@ -617,7 +617,7 @@ remove_highcorr_snp <- function(X, problematic_cols, strategy = c("correlation",
 #' @noRd
 calculate_qr_and_pseudo_R2 <- function(AssocData, tau.list, strategy = c("correlation", "variance", "response_correlation")) {
   # Make sure quantreg is installed
-  if (! requireNamespace("quantreg", quietly = TRUE)) {
+  if (!requireNamespace("quantreg", quietly = TRUE)) {
     stop("To use this function, please install quantreg: https://cran.r-project.org/web/packages/quantreg/index.html")
   }
   strategy <- match.arg(strategy)
@@ -789,9 +789,9 @@ quantile_twas_weight_pipeline <- function(X, Y, Z = NULL, maf = NULL, region_id 
   # Step 2: LD clumping and pruning from results of QR_screen (using original QR screen results)
   message("Performing LD clumping and pruning from QR screen results...")
   LD_SNPs <- multicontext_ld_clumping(X = X[, p.screen$sig_SNP_threshold, drop = FALSE], qr_results = p.screen, maf_list = NULL)
-  selected_snps <- if(ld_pruning) LD_SNPs$final_SNPs else LD_SNPs$clumped_SNPs
+  selected_snps <- if (ld_pruning) LD_SNPs$final_SNPs else LD_SNPs$clumped_SNPs
   x_clumped <- X[, p.screen$sig_SNP_threshold, drop = FALSE][, selected_snps, drop = FALSE]
-  #x_clumped <- X[, p.screen$sig_SNP_threshold, drop = FALSE][, LD_SNPs$final_SNPs, drop = FALSE]
+  # x_clumped <- X[, p.screen$sig_SNP_threshold, drop = FALSE][, LD_SNPs$final_SNPs, drop = FALSE]
 
   # Step 3: Only fit marginal QR to get beta with SNPs after LD pruning for quantile_qtl_tau_list values
   message("LD clumping and pruning completed. Fitting marginal QR for selected SNPs...")
@@ -807,21 +807,24 @@ quantile_twas_weight_pipeline <- function(X, Y, Z = NULL, maf = NULL, region_id 
   # Step 5: Optional LD panel filtering and MAF filtering from results of QR_screen
   if (!is.null(ld_reference_meta_file)) {
     message("Starting LD panel filtering...")
-  ld_result <- tryCatch({
-    variants_kept <- filter_variants_by_ld_reference(colnames(X_filtered), ld_reference_meta_file)
-    if (length(variants_kept$data) == 0) {
-      results$message <- paste0("No SNPs left after LD filtering in region ", region_id)
-      return(NULL) 
+    ld_result <- tryCatch(
+      {
+        variants_kept <- filter_variants_by_ld_reference(colnames(X_filtered), ld_reference_meta_file)
+        if (length(variants_kept$data) == 0) {
+          results$message <- paste0("No SNPs left after LD filtering in region ", region_id)
+          return(NULL)
+        }
+        return(variants_kept)
+      },
+      error = function(e) {
+        results$message <- paste0("Error in LD filtering for region ", region_id, ": ", e$message)
+        return(NULL)
+      }
+    )
+
+    if (is.null(ld_result)) {
+      return(results)
     }
-    return(variants_kept)
-  }, error = function(e) {
-    results$message <- paste0("Error in LD filtering for region ", region_id, ": ", e$message)
-    return(NULL) 
-  })
-  
-  if (is.null(ld_result)) {
-    return(results)
-  }
 
     X_filtered <- X_filtered[, variants_kept$data, drop = FALSE]
     message(paste0("Number of SNPs after LD filtering: ", ncol(X_filtered)))
