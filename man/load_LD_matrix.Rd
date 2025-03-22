@@ -22,6 +22,9 @@ Each element of the list contains:
 \item{combined_LD_variants}{A data frame merging selected variants within each LD block in bim file format with columns "chrom", "variants",
 "GD", "pos", "A1", and "A2".}
 \item{combined_LD_matrix}{The LD matrix for each region, with row and column names matching variant identifiers.}
+\item{block_indices}{A data frame tracking the indices of variants in the combined matrix by LD block,
+with columns "block_id", "start_idx", "end_idx", "chrom", "block_start", "block_end" to facilitate
+further partitioning if needed.}
 }
 }
 \description{
