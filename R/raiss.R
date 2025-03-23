@@ -108,12 +108,19 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
 #' @export
 raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, lamb = 0.01, rcond = 0.01,
                   R2_threshold = 0.6, minimum_ld = 5, verbose = TRUE) {
-  # Check if LD_matrix is a list or a single matrix
-  is_list_of_matrices <- is.list(LD_matrix) && !is.data.frame(LD_matrix) && !is.matrix(LD_matrix)
+  # Determine if we can process as a single matrix
+  is_single_matrix_case <- is.matrix(LD_matrix) ||
+    (is.list(LD_matrix) && !is.null(LD_matrix$ld_matrices) &&
+      length(LD_matrix$ld_matrices) == 1)
 
-  # For single matrix, call the core function directly
-  if (!is_list_of_matrices) {
-    if (verbose) message("Processing single LD matrix...")
+  if (is_single_matrix_case) {
+    if (verbose) message("Processing single LD matrix", if (!is.matrix(LD_matrix)) " from list", "...")
+
+    # Extract the matrix if it's in a list
+    if (!is.matrix(LD_matrix)) {
+      LD_matrix <- LD_matrix$ld_matrices[[1]]
+    }
+
     return(raiss_single_matrix(
       ref_panel, known_zscores, LD_matrix,
       lamb, rcond, R2_threshold, minimum_ld, verbose
@@ -141,8 +148,17 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
     first_var <- new_result$variant_id[1]
 
     if (last_var == first_var) {
-      if (new_result$raiss_R2[1] > combined_result$raiss_R2[nrow(combined_result)]) {
-        # Replace the last row in combined with first row from new
+      new_r2 <- new_result$raiss_R2[1]
+      old_r2 <- combined_result$raiss_R2[nrow(combined_result)]
+      if (is.na(new_r2) && is.na(old_r2)) {
+        # Both are NA - keep the existing one
+      } else if (is.na(old_r2)) {
+        # Old is NA but new is not - use new
+        combined_result[nrow(combined_result), ] <- new_result[1, ]
+      } else if (is.na(new_r2)) {
+        # New is NA but old is not - keep old
+      } else if (new_r2 > old_r2) {
+        # Both are non-NA and new is better - use new
         combined_result[nrow(combined_result), ] <- new_result[1, ]
       }
 
@@ -151,6 +167,7 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
         combined_result <- bind_rows(combined_result, new_result[-1, ])
       }
     } else {
+      # No overlap - combine all rows
       combined_result <- bind_rows(combined_result, new_result)
     }
 
@@ -215,7 +232,7 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
   combined_LD_matrix <- create_combined_LD_matrix(
     LD_matrices = ld_filtered_list,
     variants = variant_list
-  )$matrix
+  )
 
   return(list(
     result_nofilter = combined_nofilter,

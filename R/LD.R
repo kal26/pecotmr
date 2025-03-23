@@ -356,16 +356,16 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     LD_matrices = extracted_LD_matrices_list,
     variants = extracted_LD_variants_list
   )
-  combined_LD_variants = rownames(combined_LD_matrix)
-  
+  combined_LD_variants <- rownames(combined_LD_matrix)
+
   # Now create block_metadata with all the information we've accumulated
-  block_variants <- lapply(extracted_LD_variants_list, function(v) v$variants )
+  block_variants <- lapply(extracted_LD_variants_list, function(v) v$variants)
   block_metadata <- data.frame(
     block_id = seq_along(LD_file_paths),
     chrom = block_chroms,
     size = sapply(block_variants, length),
-    start_idx = sapply(block_variants, function(v) min(match(v, combined_LD_variants)) ),
-    end_idx = sapply(block_variants, function(v) max(match(v, combined_LD_variants)) ),
+    start_idx = sapply(block_variants, function(v) min(match(v, combined_LD_variants))),
+    end_idx = sapply(block_variants, function(v) max(match(v, combined_LD_variants))),
     stringsAsFactors = FALSE
   )
 
@@ -449,13 +449,12 @@ filter_variants_by_ld_reference <- function(variant_ids, ld_reference_meta_file,
 #' large LD matrices that span multiple blocks.
 #'
 #' @param ld_data A list as returned by load_LD_matrix, containing combined_LD_matrix,
-#'                combined_LD_variants, ref_panel, and block_indices.
+#'                combined_LD_variants, ref_panel, and block_metadata.
 #' @param merge_small_blocks Logical, whether to merge blocks smaller than min_merged_block_size (default: TRUE).
 #' @param min_merged_block_size Integer, minimum number of variants for a block after merging (default: 50).
 #' @param max_merged_block_size Integer, maximum number of variants in a block after merging (default: 1000).
 #'
-#' @return If ld_data contains only one block, returns the original LD matrix unchanged.
-#'         Otherwise, returns a list containing:
+#' @return returns a list containing:
 #' \describe{
 #' \item{ld_matrices}{A list of matrices, each representing LD for a specific block.}
 #' \item{variant_indices}{A data frame that maps variant IDs to their corresponding block.}
@@ -474,62 +473,122 @@ partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
     stop("Empty or NULL LD matrix provided.")
   }
 
-  # If only one block, return the original matrix
-  if (nrow(block_metadata) == 1) {
-    return(combined_matrix)
+  # Ensure the row and column names of the matrix match the variant_ids
+  if (is.null(rownames(combined_matrix)) || is.null(colnames(combined_matrix)) ||
+    !identical(rownames(combined_matrix), variant_ids) || !identical(colnames(combined_matrix), variant_ids)) {
+    rownames(combined_matrix) <- variant_ids
+    colnames(combined_matrix) <- variant_ids
+  }
+
+  # Validate the block structure of the matrix (skip if only one block)
+  if (nrow(block_metadata) > 1) {
+    validate_block_structure(combined_matrix, block_metadata, variant_ids)
   }
 
   # Optionally merge small blocks
-  if (merge_small_blocks) {
-    # Find blocks smaller than min_merged_block_size based on their size
-    small_blocks <- which(block_metadata$size < min_merged_block_size)
-
-    if (length(small_blocks) > 0) {
-      # Strategy: Merge with adjacent blocks if on same chromosome
-      new_block_metadata <- block_metadata
-      current_block <- 1
-
-      while (current_block < nrow(new_block_metadata)) {
-        # If current block is small and next block is on same chromosome, consider merging
-        if (new_block_metadata$size[current_block] < min_merged_block_size &&
-          current_block < nrow(new_block_metadata) &&
-          new_block_metadata$chrom[current_block] == new_block_metadata$chrom[current_block + 1]) {
-          # Check if merging would exceed max_merged_block_size
-          combined_size <- new_block_metadata$size[current_block] + new_block_metadata$size[current_block + 1]
-
-          if (combined_size <= max_merged_block_size) {
-            # Merge blocks
-            new_block_metadata$end_idx[current_block] <- new_block_metadata$end_idx[current_block + 1]
-            new_block_metadata$size[current_block] <- combined_size
-
-            # Remove the merged block
-            new_block_metadata <- new_block_metadata[-1 * (current_block + 1), ]
-
-            # Don't increment current_block as we may need to continue merging
-          } else {
-            # Skip to next block if merging would create too large a block
-            current_block <- current_block + 1
-          }
-        } else {
-          # Move to next block
-          current_block <- current_block + 1
-        }
-      }
-
-      # Update block metadata
-      block_metadata <- new_block_metadata
-
-      # Renumber block IDs
-      block_metadata$block_id <- seq_len(nrow(block_metadata))
-    }
-  }
-
-  # If after merging we only have one block, return the original matrix
-  if (nrow(block_metadata) == 1) {
-    return(combined_matrix)
+  if (merge_small_blocks && any(block_metadata$size < min_merged_block_size) && nrow(block_metadata) > 1) {
+    block_metadata <- merge_blocks(block_metadata, min_merged_block_size, max_merged_block_size)
   }
 
   # Partition the matrix based on block metadata
+  result <- extract_block_matrices(combined_matrix, block_metadata, variant_ids)
+
+  return(result)
+}
+
+# Helper function to validate block structure
+validate_block_structure <- function(matrix, block_metadata, variant_ids) {
+  validation_failed <- FALSE
+  validation_message <- character(0)
+
+  for (i in 1:(nrow(block_metadata) - 1)) {
+    for (j in (i + 1):nrow(block_metadata)) {
+      # Get indices for each block
+      block_i_start <- block_metadata$start_idx[i]
+      block_i_end <- block_metadata$end_idx[i]
+      block_j_start <- block_metadata$start_idx[j]
+      block_j_end <- block_metadata$end_idx[j]
+
+      # Check if indices are valid
+      if (block_i_start > length(variant_ids) || block_i_end > length(variant_ids) ||
+        block_j_start > length(variant_ids) || block_j_end > length(variant_ids)) {
+        validation_failed <- TRUE
+        validation_message <- c(
+          validation_message,
+          paste("Block indices are out of range for blocks", i, "and", j)
+        )
+        next
+      }
+
+      # Get the cross-block submatrix
+      block_i_vars <- variant_ids[block_i_start:block_i_end]
+      block_j_vars <- variant_ids[block_j_start:block_j_end]
+
+      # Extract the cross-block matrix
+      cross_block <- matrix[block_i_vars, block_j_vars, drop = FALSE]
+
+      # Check if any values are non-zero (allowing for numerical precision issues)
+      max_value <- max(abs(cross_block))
+      if (max_value > 1e-10) {
+        validation_failed <- TRUE
+        validation_message <- c(
+          validation_message,
+          paste(
+            "Non-zero correlation detected between blocks", i, "and", j,
+            "- Max value:", max_value
+          )
+        )
+      }
+    }
+  }
+
+  # If validation failed, stop execution with error message
+  if (validation_failed) {
+    stop(
+      "Matrix does not have the expected block structure:\n",
+      paste(validation_message, collapse = "\n")
+    )
+  }
+}
+
+# Helper function to merge small blocks
+merge_blocks <- function(block_metadata, min_size, max_size) {
+  new_block_metadata <- block_metadata
+  current_block <- 1
+
+  while (current_block < nrow(new_block_metadata)) {
+    # Check if current block is small and can be merged with next block
+    if (new_block_metadata$size[current_block] < min_size &&
+      current_block < nrow(new_block_metadata) &&
+      new_block_metadata$chrom[current_block] == new_block_metadata$chrom[current_block + 1]) {
+      # Check if merging would exceed max_size
+      combined_size <- new_block_metadata$size[current_block] + new_block_metadata$size[current_block + 1]
+
+      if (combined_size <= max_size) {
+        # Merge blocks
+        new_block_metadata$end_idx[current_block] <- new_block_metadata$end_idx[current_block + 1]
+        new_block_metadata$size[current_block] <- combined_size
+
+        # Remove the merged block
+        new_block_metadata <- new_block_metadata[-1 * (current_block + 1), ]
+      } else {
+        # Skip to next block if merging would create too large a block
+        current_block <- current_block + 1
+      }
+    } else {
+      # Move to next block
+      current_block <- current_block + 1
+    }
+  }
+
+  # Renumber block IDs
+  new_block_metadata$block_id <- seq_len(nrow(new_block_metadata))
+
+  return(new_block_metadata)
+}
+
+# Helper function to extract block matrices
+extract_block_matrices <- function(matrix, block_metadata, variant_ids) {
   ld_matrices <- list()
   variant_mapping <- data.frame(
     variant_id = character(),
@@ -541,14 +600,20 @@ partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
     start_idx <- block_metadata$start_idx[i]
     end_idx <- block_metadata$end_idx[i]
 
-    # Skip empty blocks (should not happen after merging)
+    # Skip empty blocks
     if (end_idx < start_idx) next
+
+    # Ensure indices are within bounds
+    if (start_idx > length(variant_ids) || end_idx > length(variant_ids)) {
+      warning(paste("Block", i, "has indices outside the range of variant_ids. Skipping."))
+      next
+    }
 
     # Extract variant IDs for this block
     block_variants <- variant_ids[start_idx:end_idx]
 
-    # Extract submatrix for this block
-    block_matrix <- combined_matrix[start_idx:end_idx, start_idx:end_idx, drop = FALSE]
+    # Extract submatrix for this block - use named indexing
+    block_matrix <- matrix[block_variants, block_variants, drop = FALSE]
 
     # Store in list
     ld_matrices[[i]] <- block_matrix
@@ -562,7 +627,6 @@ partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
     variant_mapping <- rbind(variant_mapping, block_mapping)
   }
 
-  # Return the partitioned data as a list
   return(list(
     ld_matrices = ld_matrices,
     variant_indices = variant_mapping,
