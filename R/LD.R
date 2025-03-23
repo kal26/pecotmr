@@ -1,7 +1,8 @@
 #' Function to Check if Regions are in increasing order and remove duplicated rows
 #' @importFrom dplyr distinct arrange group_by mutate ungroup
 #' @importFrom magrittr %>%
-check_consecutive_regions <- function(df) {
+#' @noRd
+order_dedup_regions <- function(df) {
   # Ensure that 'chrom' values are integers, df can be genomic_data or regions_of_interest
   df$chrom <- ifelse(grepl("^chr", df$chrom),
     as.integer(sub("^chr", "", df$chrom)), # Remove 'chr' and convert to integer
@@ -12,18 +13,17 @@ check_consecutive_regions <- function(df) {
   df <- distinct(df, chrom, start, .keep_all = TRUE) %>%
     arrange(chrom, start)
 
-  for (chr in unique(df$chrom)) {
-    chr_rows <- which(df$chrom == chr)
-    if (length(chr_rows) > 1) {
-      starts <- df$start[chr_rows]
-      for (i in 2:length(starts)) {
-        if (starts[i] < starts[i - 1]) {
-          stop("The input list of regions is not in increasing order within each chromosome.")
-        }
-      }
-    }
-  }
-
+  #for (chr in unique(df$chrom)) {
+  #  chr_rows <- which(df$chrom == chr)
+  #  if (length(chr_rows) > 1) {
+  #    starts <- df$start[chr_rows]
+  #    for (i in 2:length(starts)) {
+  #      if (starts[i] < starts[i - 1]) {
+  #        stop("The input list of regions is not in increasing order within each chromosome.")
+  #      }
+  #    }
+  #  }
+  #}
 
   return(df)
 }
@@ -114,8 +114,8 @@ get_regional_ld_meta <- function(ld_reference_meta_file, region, complete_covera
   names(region) <- c("chrom", "start", "end")
 
   # Order and deduplicate regions
-  genomic_data <- check_consecutive_regions(genomic_data)
-  region <- check_consecutive_regions(region)
+  genomic_data <- order_dedup_regions(genomic_data)
+  region <- order_dedup_regions(region)
 
   # Process file paths
   file_path <- genomic_data$path %>%
