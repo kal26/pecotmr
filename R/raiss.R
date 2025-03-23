@@ -11,7 +11,7 @@
 #'
 #' @return A list containing filtered and unfiltered results, and filtered LD matrix.
 #' @importFrom dplyr arrange
-#' @export
+#' @noRd
 raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01, rcond = 0.01,
                                 R2_threshold = 0.6, minimum_ld = 5, verbose = TRUE) {
   # Check that ref_panel and known_zscores are both increasing in terms of pos
@@ -175,8 +175,8 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
   ld_filtered_list <- lapply(results_list, function(x) x$LD_mat)
 
   # Combine into data frames
-  result_nofilter <- dplyr::bind_rows(nofilter_results) %>% arrange(pos)
-  result_filter <- dplyr::bind_rows(filter_results) %>% arrange(pos)
+  result_nofilter <- bind_rows(nofilter_results) %>% arrange(pos)
+  result_filter <- bind_rows(filter_results) %>% arrange(pos)
 
   # Return combined results
   return(list(
