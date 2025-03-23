@@ -31,8 +31,8 @@
 #' @param n_cases User-specified number of cases.
 #' @param n_controls User-specified number of controls.
 #' @param region The region where tabix use to subset the input dataset.
-#' @param include_value User-specified gene/phenotype name used to further subset the phenotype data.
-#' @param include_column_index Filter this specific column for the include_value.
+#' @param extract_sumstat_region_name User-specified gene/phenotype name used to further subset the phenotype data.
+#' @param sumstat_region_name_col Filter this specific column for the extract_sumstat_region_name.
 #' @param comment_string comment sign in the column_mapping file, default is #
 #' @param extract_coordinates Optional data frame with columns "chrom" and "pos" for specific coordinates extraction.
 #'
@@ -88,8 +88,8 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
                                          n_samples = 0,
                                          n_cases = 0,
                                          n_controls = 0,
-                                         include_value = NULL,
-                                         include_column_index = NULL,
+                                         extract_sumstat_region_name = NULL,
+                                         sumstat_region_name_col = NULL,
                                          comment_string = "#",
                                          extract_coordinates = NULL) {
   if (is.null(genotype_list) & is.null(sumstat_path_list)) {
@@ -206,8 +206,8 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
         tmp <- load_rss_data(
           sumstat_path = sumstat_path, column_file_path = column_file_path,
           n_sample = n_samples[ii], n_case = n_cases[ii], n_control = n_controls[ii],
-          region = association_window, include_value = include_value,
-          include_column_index = include_column_index, comment_string = comment_string
+          region = association_window, extract_region_name = extract_sumstat_region_name,
+          region_name_col = sumstat_region_name_col, comment_string = comment_string
         )
         if (!("variant_id" %in% colnames(tmp$sumstats))) {
           tmp$sumstats <- tmp$sumstats %>%

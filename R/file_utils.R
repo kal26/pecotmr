@@ -768,8 +768,8 @@ load_twas_weights <- function(weight_db_files, conditions = NULL,
 #' @param n_case User-specified number of cases.
 #' @param n_control User-specified number of controls.
 #' @param region The region where tabix use to subset the input dataset.
-#' @param include_value User-specified gene/phenotype name used to further subset the phenotype data.
-#' @param include_column_index Filter this specific column for the include_value.
+#' @param extract_region_name User-specified gene/phenotype name used to further subset the phenotype data.
+#' @param region_name_col Filter this specific column for the extract_region_name.
 #' @param comment_string Comment sign in the column_mapping file, default is #
 #' @return A list of rss_input, including the column-name-formatted summary statistics,
 #' sample size (n), and var_y.
@@ -778,7 +778,7 @@ load_twas_weights <- function(weight_db_files, conditions = NULL,
 #' @importFrom magrittr %>%
 #' @export
 load_rss_data <- function(sumstat_path, column_file_path, n_sample = 0, n_case = 0, n_control = 0, region = NULL,
-                          include_value = NULL, include_column_index = NULL, comment_string = "#") {
+                          extract_region_name = NULL, region_name_col = NULL, comment_string = "#") {
   # Read and preprocess column mapping
   if (is.null(comment_string)) {
     column_data <- read.table(column_file_path,
@@ -798,7 +798,7 @@ load_rss_data <- function(sumstat_path, column_file_path, n_sample = 0, n_case =
   # Initialize sumstats variable
   sumstats <- NULL
   var_y <- NULL
-  sumstats <- load_tsv_region(file_path = sumstat_path, region = region, include_value = include_value, include_column_index = include_column_index)
+  sumstats <- load_tsv_region(file_path = sumstat_path, region = region, extract_region_name = extract_region_name, region_name_col = region_name_col)
   # Standardize column names based on mapping
   for (name in colnames(sumstats)) {
     if (name %in% column_data$original) {
@@ -852,15 +852,15 @@ load_rss_data <- function(sumstat_path, column_file_path, n_sample = 0, n_case =
 #'
 #' @param file_path Path to the summary statistics file.
 #' @param region Genomic region for subsetting tabix-indexed files. Format: chr:start-end (e.g., "9:10000-50000").
-#' @param include_value Value to filter for in the specified filter column.
-#' @param include_column_index Index of the column to apply the include_value against.
+#' @param extract_region_name Value to filter for in the specified filter column.
+#' @param region_name_col Index of the column to apply the extract_region_name against.
 #'
 #' @return A dataframe containing the filtered summary statistics.
 #'
 #' @importFrom data.table fread
 #' @importFrom vroom vroom
 #' @export
-load_tsv_region <- function(file_path, region = NULL, include_value = NULL, include_column_index = NULL) {
+load_tsv_region <- function(file_path, region = NULL, extract_region_name = NULL, region_name_col = NULL) {
   sumstats <- NULL
   cmd <- NULL
 
@@ -873,16 +873,16 @@ load_tsv_region <- function(file_path, region = NULL, include_value = NULL, incl
   if (grepl("\\.gz$", file_path)) {
     if (is.null(sumstats) || nrow(sumstats) == 0) {
       # Determine the appropriate command based on provided parameters
-      if (!is.null(include_value) && !is.null(region) && !is.null(include_column_index)) {
+      if (!is.null(extract_region_name) && !is.null(region) && !is.null(region_name_col)) {
         # Both region and filter specified
         cmd <- paste0(
           "zcat ", file_path, " | head -1 && tabix ", file_path, " ", region,
-          " | awk '$", include_column_index, " ~ /", include_value, "/'"
+          " | awk '$", region_name_col, " ~ /", extract_region_name, "/'"
         )
-      } else if (!is.null(include_value) && is.null(region) && !is.null(include_column_index)) {
+      } else if (!is.null(extract_region_name) && is.null(region) && !is.null(region_name_col)) {
         # Only filter specified, no region
-        cmd <- paste0("zcat ", file_path, " | awk '$", include_column_index, " ~ /", include_value, "/'")
-      } else if (!is.null(region) && (is.null(include_column_index) || is.null(include_value))) {
+        cmd <- paste0("zcat ", file_path, " | awk '$", region_name_col, " ~ /", extract_region_name, "/'")
+      } else if (!is.null(region) && (is.null(region_name_col) || is.null(extract_region_name))) {
         # Only region specified, no filter
         cmd <- paste0("zcat ", file_path, " | head -1 && tabix ", file_path, " ", region)
       } else {
@@ -903,8 +903,8 @@ load_tsv_region <- function(file_path, region = NULL, include_value = NULL, incl
     warning("Not a tabix-indexed gz file, loading the entire dataset.")
     sumstats <- vroom(file_path)
     # Apply filter if specified
-    if (!is.null(include_value) && !is.null(include_column_index)) {
-      keep_index <- which(str_detect(sumstats[[include_column_index]], include_value))
+    if (!is.null(extract_region_name) && !is.null(region_name_col)) {
+      keep_index <- which(str_detect(sumstats[[region_name_col]], extract_region_name))
       sumstats <- sumstats[keep_index, ]
     }
   }
