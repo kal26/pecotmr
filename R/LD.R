@@ -347,7 +347,6 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
   # Using a for loop here to allow for rm() in each loop to save memory
   extracted_LD_matrices_list <- list()
   extracted_LD_variants_list <- list()
-  block_sizes <- integer(length(LD_file_paths))
   block_chroms <- character(length(LD_file_paths))
 
   # Process each LD block individually
@@ -361,7 +360,7 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     )
     extracted_LD_matrices_list[[j]] <- extracted_LD_list$extracted_LD_matrix
     extracted_LD_variants_list[[j]] <- extracted_LD_list$extracted_LD_variants
-    block_sizes[j] <- ifelse(j == 1, nrow(extracted_LD_variants_list[[j]]), nrow(extracted_LD_variants_list[[j]]) - 1)
+
     if (nrow(extracted_LD_variants_list[[j]]) > 0) {
       block_chroms[j] <- as.character(extracted_LD_variants_list[[j]]$chrom[1])
     } else {
@@ -373,7 +372,6 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     rm(LD_matrix_processed, extracted_LD_list)
   }
 
-
   # Create combined LD matrix with accurate block positions
   combined_LD_result <- create_combined_LD_matrix(
     LD_matrices = extracted_LD_matrices_list,
@@ -383,11 +381,11 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
   # Extract the matrix and position information
   combined_LD_matrix <- combined_LD_result$matrix
 
-  # Create block metadata with the accurate positions from the merge process
+  # Create block metadata with size calculated from the actual block positions
   block_metadata <- data.frame(
     block_id = seq_along(LD_file_paths),
     chrom = block_chroms,
-    size = block_sizes,
+    size = combined_LD_result$block_ends - combined_LD_result$block_starts + 1,
     start_idx = combined_LD_result$block_starts,
     end_idx = combined_LD_result$block_ends,
     stringsAsFactors = FALSE
