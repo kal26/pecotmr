@@ -252,32 +252,28 @@ extract_LD_for_region <- function(LD_matrix, variants, region, extract_coordinat
 create_combined_LD_matrix <- function(LD_matrices, variants) {
   # Extract unique variant names from the list of variants with position tracking
   mergeVariants <- function(LD_variants_list) {
-    # Initialize an empty vector to store the merged variants
     mergedVariants <- character(0)
-    # Track actual block start and end positions in the merged list
     block_starts <- integer(length(LD_variants_list))
     block_ends <- integer(length(LD_variants_list))
 
     for (i in seq_along(LD_variants_list)) {
-      # Extract the variants from the current LD matrix
       currentVariants <- get_nested_element(LD_variants_list[[i]], "variants")
+
       if (length(currentVariants) == 0) {
         block_starts[i] <- length(mergedVariants) + 1
         block_ends[i] <- length(mergedVariants)
         next
       }
 
-      # Record start position before adding variants
       block_starts[i] <- length(mergedVariants) + 1
 
-      # Merge variants, handling overlap
+      # Merge variants, handling overlap - using <<- to modify parent environment variable
       if (length(mergedVariants) > 0 && tail(mergedVariants, 1) == currentVariants[1]) {
-        mergedVariants <- c(mergedVariants, currentVariants[-1])
+        mergedVariants <<- c(mergedVariants, currentVariants[-1])
       } else {
-        mergedVariants <- c(mergedVariants, currentVariants)
+        mergedVariants <<- c(mergedVariants, currentVariants)
       }
 
-      # Record end position after adding variants
       block_ends[i] <- length(mergedVariants)
     }
 
