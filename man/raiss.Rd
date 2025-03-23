@@ -8,7 +8,6 @@ raiss(
   ref_panel,
   known_zscores,
   LD_matrix,
-  variant_indices = NULL,
   lamb = 0.01,
   rcond = 0.01,
   R2_threshold = 0.6,
@@ -22,8 +21,6 @@ raiss(
 \item{known_zscores}{A data frame containing 'chrom', 'pos', 'variant_id', 'A1', 'A2', and 'z' values.}
 
 \item{LD_matrix}{Either a square matrix or a list of matrices for LD blocks.}
-
-\item{variant_indices}{Optional data frame mapping variant IDs to block IDs when LD_matrix is a list.}
 
 \item{lamb}{Regularization term added to the diagonal of the LD_matrix.}
 

@@ -131,10 +131,10 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01, rcond = 0.01
 
   combine_with_boundary_check <- function(combined_result, new_result) {
     # If either is empty, simply return the non-empty one or empty data frame
-    if (nrow(combined_result) == 0) {
+    if (is.null(combined_result)) {
       return(new_result)
     }
-    if (nrow(new_result) == 0) {
+    if (is.null(new_result)) {
       return(combined_result)
     }
 
