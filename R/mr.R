@@ -55,7 +55,7 @@ mr_format <- function(susie_result, condition, gwas_sumstats_db, coverage = "cs_
         filter(coverage >= 1) %>%
         mutate(variant = ifelse(grepl("^chr[0-9]+:", variant_id), gsub("^chr", "", variant_id), variant_id)) %>%
         select(gene_name, variant, betahat, sebetahat, all_of(coverage), pip) %>%
-        rename("bhat_x" = "betahat", "sbhat_x" = "sebetahat", "cs" = coverage)
+        rename("bhat_x" = "betahat", "sbhat_x" = "sebetahat", "cs" = all_of(coverage))
       susie_pos <- sapply(susie_cs_result_formatted$variant, function(variant_id) strsplit(variant_id, "\\:")[[1]][2])
       gwas_pos <- sapply(gwas_sumstats_db$variant_id, function(variant_id) strsplit(variant_id, "\\:")[[1]][2])
       if (any(susie_pos %in% gwas_pos)) {

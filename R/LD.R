@@ -8,12 +8,12 @@ order_dedup_regions <- function(df) {
     as.integer(sub("^chr", "", df$chrom)), # Remove 'chr' and convert to integer
     as.integer(df$chrom)
   ) # Convert to integer if not already
-    
+
   # Remove duplicated rows based on 'chrom' and 'start' columns
   df <- distinct(df, chrom, start, .keep_all = TRUE) %>%
     arrange(chrom, start)
 
-  #for (chr in unique(df$chrom)) {
+  # for (chr in unique(df$chrom)) {
   #  chr_rows <- which(df$chrom == chr)
   #  if (length(chr_rows) > 1) {
   #    starts <- df$start[chr_rows]
@@ -23,7 +23,7 @@ order_dedup_regions <- function(df) {
   #      }
   #    }
   #  }
-  #}
+  # }
 
   return(df)
 }

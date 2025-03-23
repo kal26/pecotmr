@@ -338,37 +338,8 @@ test_that("partition_LD_matrix correctly extracts blocks based on metadata", {
 })
 
 
-# Tests for check_consecutive_regions function
-test_that("check_consecutive_regions correctly validates ordered regions", {
-  # Create ordered regions
-  ordered_regions <- data.frame(
-    chrom = c("chr1", "chr1", "chr2"),
-    start = c(100, 200, 100),
-    end = c(150, 250, 150)
-  )
-  
-  # Should return the same dataframe but with 'chrom' as integers
-  result <- check_consecutive_regions(ordered_regions)
-  expect_equal(result$chrom, c(1, 1, 2))
-  expect_equal(result$start, c(100, 200, 100))
-  expect_equal(result$end, c(150, 250, 150))
-})
-
-test_that("check_consecutive_regions throws error for unordered regions", {
-  # Create unordered regions (decreasing start positions within chr1)
-  unordered_regions <- data.frame(
-    chrom = c("chr1", "chr1", "chr2"),
-    start = c(200, 100, 100),  # Note: start positions for chr1 are out of order
-    end = c(250, 150, 150)
-  )
-  
-  expect_error(
-    check_consecutive_regions(unordered_regions),
-    "The input list of regions is not in increasing order within each chromosome."
-  )
-})
-
-test_that("check_consecutive_regions removes duplicate regions", {
+# Tests for order_dedup_regions function
+test_that("order_dedup_regions removes duplicate regions", {
   # Create regions with duplicates
   regions_with_dups <- data.frame(
     chrom = c("chr1", "chr1", "chr1"),
@@ -376,7 +347,7 @@ test_that("check_consecutive_regions removes duplicate regions", {
     end = c(150, 150, 250)
   )
   
-  result <- check_consecutive_regions(regions_with_dups)
+  result <- order_dedup_regions(regions_with_dups)
   # Should have removed duplicate and return only two rows
   expect_equal(nrow(result), 2)
   expect_equal(result$start, c(100, 200))
