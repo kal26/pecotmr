@@ -767,19 +767,18 @@ load_twas_weights <- function(weight_db_files, conditions = NULL,
 #' @param n_sample User-specified sample size. If unknown, set as 0 to retrieve from the sumstat file.
 #' @param n_case User-specified number of cases.
 #' @param n_control User-specified number of controls.
-#'
 #' @param region The region where tabix use to subset the input dataset.
-#' @param target User-specified gene/phenotype name used to further subset the phenotype data.
-#' @param target_column_index Filter this specific column for the target.
-#' @param comment_string comment sign in the column_mapping file, default is #
+#' @param filter_value User-specified gene/phenotype name used to further subset the phenotype data.
+#' @param filter_column_index Filter this specific column for the filter_value.
+#' @param comment_string Comment sign in the column_mapping file, default is #
 #' @return A list of rss_input, including the column-name-formatted summary statistics,
 #' sample size (n), and var_y.
 #'
 #' @importFrom dplyr mutate group_by summarise
 #' @importFrom magrittr %>%
 #' @export
-load_rss_data <- function(sumstat_path, column_file_path, subset = TRUE, n_sample = 0, n_case = 0, n_control = 0, target = "",
-                          region = "", target_column_index = "", comment_string = "#") {
+load_rss_data <- function(sumstat_path, column_file_path, n_sample = 0, n_case = 0, n_control = 0, region = NULL,
+                          filter_value = NULL, filter_column_index = NULL, comment_string = "#") {
   # Read and preprocess column mapping
   if (is.null(comment_string)) {
     column_data <- read.table(column_file_path,
@@ -796,13 +795,10 @@ load_rss_data <- function(sumstat_path, column_file_path, subset = TRUE, n_sampl
     ) %>%
       rename(standard = V1, original = V2)
   }
-
   # Initialize sumstats variable
   sumstats <- NULL
   var_y <- NULL
-
-  sumstats <- load_tsv_region(sumstat_path = sumstat_path, region = region, target = target, target_column_index = target_column_index)
-
+  sumstats <- load_tsv_region(file_path = sumstat_path, region = region, filter_value = filter_value, filter_column_index = filter_column_index)
   # Standardize column names based on mapping
   for (name in colnames(sumstats)) {
     if (name %in% column_data$original) {
@@ -810,7 +806,6 @@ load_rss_data <- function(sumstat_path, column_file_path, subset = TRUE, n_sampl
       colnames(sumstats)[colnames(sumstats) == name] <- column_data$standard[index]
     }
   }
-
   if (!"z" %in% colnames(sumstats) && all(c("beta", "se") %in%
     colnames(sumstats))) {
     sumstats$z <- sumstats$beta / sumstats$se
@@ -849,74 +844,73 @@ load_rss_data <- function(sumstat_path, column_file_path, subset = TRUE, n_sampl
   return(list(sumstats = sumstats, n = n, var_y = var_y))
 }
 
-#' Load customized tsv data
+#' Load and filter tabular data with optional region subsetting
 #'
-#' This function load the input data. If the input sumstat data is .gz and tabixed, then can use the region parameter to subset the data
-#' and filter by target column
-#' Otherwise, it will only filter by target column since tabix command won't function (this apply to .tsv, .txt files)
+#' This function loads summary statistics data from tabular files (TSV, TXT).
+#' For compressed (.gz) and tabix-indexed files, it can subset data by genomic region.
+#' Additionally, it can filter results by a specified target value in a designated column.
 #'
+#' @param file_path Path to the summary statistics file.
+#' @param region Genomic region for subsetting tabix-indexed files. Format: chr:start-end (e.g., "9:10000-50000").
+#' @param filter_value Value to filter for in the specified filter column.
+#' @param filter_column_index Index of the column to apply the filter_value against.
 #'
-#' @param sumstat_path File path to the summary statistics.
-#' @param region The region where tabix use to subset the input dataset. Format: chr:start-end (eg: 9:10000-50000)
-#' @param target User-specified gene/phenotype name used to further subset the phenotype data.
-#' @param target_column_index Filter this specific column for the target.
-#'
-#' @return A dataframe of the subsetted summary statistics,
+#' @return A dataframe containing the filtered summary statistics.
 #'
 #' @importFrom data.table fread
 #' @importFrom vroom vroom
 #' @export
-
-load_tsv_region <- function(sumstat_path, region = "", target = "", target_column_index = "") {
+load_tsv_region <- function(file_path, region = NULL, filter_value = NULL, filter_column_index = NULL) {
   sumstats <- NULL
   cmd <- NULL
+
   if (!is.null(region)) {
     if (grepl("^chr", region)) {
       region <- sub("^chr", "", region)
     }
   }
-  if (grepl(".gz$", sumstat_path)) {
+
+  if (grepl("\\.gz$", file_path)) {
     if (is.null(sumstats) || nrow(sumstats) == 0) {
-      if (target != "" && region != "" && target_column_index != "") {
-        # region specified, target specified
-        cmd <- paste0("zcat ", sumstat_path, " | head -1 && tabix ", sumstat_path, " ", region, " | awk '$", target_column_index, " ~ /", target, "/'")
-      } else if (target != "" && region == "" && target_column_index != "") {
-        # region not specified, target specified
-        cmd <- paste0("zcat ", sumstat_path, " | awk '$", target_column_index, " ~ /", target, "/'")
-      } else if (region != "" && (target_column_index == "" || target == "")) {
-        # region specified, target not specified
-        cmd <- paste0("zcat ", sumstat_path, " | head -1 && tabix ", sumstat_path, " ", region)
+      # Determine the appropriate command based on provided parameters
+      if (!is.null(filter_value) && !is.null(region) && !is.null(filter_column_index)) {
+        # Both region and filter specified
+        cmd <- paste0(
+          "zcat ", file_path, " | head -1 && tabix ", file_path, " ", region,
+          " | awk '$", filter_column_index, " ~ /", filter_value, "/'"
+        )
+      } else if (!is.null(filter_value) && is.null(region) && !is.null(filter_column_index)) {
+        # Only filter specified, no region
+        cmd <- paste0("zcat ", file_path, " | awk '$", filter_column_index, " ~ /", filter_value, "/'")
+      } else if (!is.null(region) && (is.null(filter_column_index) || is.null(filter_value))) {
+        # Only region specified, no filter
+        cmd <- paste0("zcat ", file_path, " | head -1 && tabix ", file_path, " ", region)
       } else {
-        # both not specified. Instead of reading a command, read the file path instead
-        cmd <- sumstat_path
+        # Neither region nor filter specified
+        cmd <- file_path
       }
+
       sumstats <- tryCatch(
         {
           fread(cmd)
         },
         error = function(e) {
-          # the gz file cannot be processed by tabix / target column missing
-          stop("Data read error. Please make sure this gz file is tabixed and the target column exists.")
+          stop("Data read error. Please make sure this gz file is tabix-indexed and the specified filter column exists.")
         }
       )
     }
   } else {
-    # Non-gz files, cannot be tabixed. Load the whole dataset and only apply target filter
-    warning("Not a tabixed gz file, loading the whole data.")
-    if (target != "" && target_column_index != "") {
-      # target specified
-      sumstats <- vroom(sumstat_path)
-      keep_index <- which(str_detect(sumstats[[target_column_index]], target))
+    warning("Not a tabix-indexed gz file, loading the entire dataset.")
+    sumstats <- vroom(file_path)
+    # Apply filter if specified
+    if (!is.null(filter_value) && !is.null(filter_column_index)) {
+      keep_index <- which(str_detect(sumstats[[filter_column_index]], filter_value))
       sumstats <- sumstats[keep_index, ]
-    } else {
-      # target not specified, the whole dataset
-      sumstats <- vroom(sumstat_path)
     }
   }
 
   return(sumstats)
 }
-
 
 #' Split loaded twas_weights_results into batches based on maximum memory usage
 #'
