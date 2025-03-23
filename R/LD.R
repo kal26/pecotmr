@@ -388,7 +388,6 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
   combined_LD_list <- list(
     combined_LD_variants = combined_LD_variants,
     combined_LD_matrix = combined_LD_matrix,
-    block_LD_variants = extracted_LD_variants_list,
     ref_panel = ref_panel,
     block_metadata = block_metadata
   )
