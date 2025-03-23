@@ -1,31 +1,29 @@
 #' Function to Check if Regions are in increasing order and remove duplicated rows
 #' @importFrom dplyr distinct arrange group_by mutate ungroup
 #' @importFrom magrittr %>%
-#' @importFrom stats lag
 check_consecutive_regions <- function(df) {
   # Ensure that 'chrom' values are integers, df can be genomic_data or regions_of_interest
   df$chrom <- ifelse(grepl("^chr", df$chrom),
     as.integer(sub("^chr", "", df$chrom)), # Remove 'chr' and convert to integer
     as.integer(df$chrom)
   ) # Convert to integer if not already
-  # Remove duplicated rows based on 'chrom' and 'start' columns
-  df <- distinct(df, chrom, start, .keep_all = TRUE)
 
-  # Arrange the genomic regions by 'chrom' and 'start' columns
-  df <- df %>%
+  for (chr in unique(df$chrom)) {
+    chr_rows <- which(df$chrom == chr)
+    if (length(chr_rows) > 1) {
+      starts <- df$start[chr_rows]
+      for (i in 2:length(starts)) {
+        if (starts[i] < starts[i - 1]) {
+          stop("The input list of regions is not in increasing order within each chromosome.")
+        }
+      }
+    }
+  }
+
+  # Remove duplicated rows based on 'chrom' and 'start' columns
+  df <- distinct(df, chrom, start, .keep_all = TRUE) %>%
     arrange(chrom, start)
 
-  # Group by chromosome and check if start positions are in ascending order
-  # use stats::lag here explicitly to avoid warning message
-  # due to a dplyr issue: https://github.com/tidyverse/dplyr/issues/2195
-  start_ordered_check <- df %>%
-    group_by(chrom) %>%
-    mutate(start_order = start >= lag(start, default = first(start))) %>%
-    ungroup()
-
-  if (any(!start_ordered_check$start_order, na.rm = TRUE)) {
-    stop("The input list of regions is not in increasing order within each chromosome.")
-  }
   return(df)
 }
 
@@ -33,18 +31,22 @@ check_consecutive_regions <- function(df) {
 #' @importFrom dplyr filter arrange slice
 #' @noRd
 find_intersection_rows <- function(genomic_data, region_chrom, region_start, region_end) {
-  # Adjusting region_start if it's smaller than the smallest start position in genomic_data
-  min_start <- min(genomic_data %>% filter(chrom == region_chrom) %>% pull(start))
+  # Filter for the specific chromosome
+  chrom_data <- genomic_data %>% filter(chrom == region_chrom)
+
+  min_start <- if (nrow(chrom_data) > 0) min(chrom_data$start) else NA
+  max_end <- if (nrow(chrom_data) > 0) max(chrom_data$end) else NA
+
+  # Adjust region bounds if they're outside available data range
   if (!is.na(min_start) && region_start < min_start) {
     region_start <- min_start
   }
 
-  # Adjusting region_end if it's larger than the largest end position in genomic_data
-  max_end <- max(genomic_data %>% filter(chrom == region_chrom) %>% pull(end))
   if (!is.na(max_end) && region_end > max_end) {
     region_end <- max_end
   }
 
+  # Try to find rows that cover the region start and end
   start_row <- genomic_data %>%
     filter(chrom == region_chrom, start <= region_start, end >= region_start) %>%
     slice(1)
@@ -450,8 +452,8 @@ filter_variants_by_ld_reference <- function(variant_ids, ld_reference_meta_file,
 #' @param ld_data A list as returned by load_LD_matrix, containing combined_LD_matrix,
 #'                combined_LD_variants, ref_panel, and block_metadata.
 #' @param merge_small_blocks Logical, whether to merge blocks smaller than min_merged_block_size (default: TRUE).
-#' @param min_merged_block_size Integer, minimum number of variants for a block after merging (default: 50).
-#' @param max_merged_block_size Integer, maximum number of variants in a block after merging (default: 1000).
+#' @param min_merged_block_size Integer, minimum number of variants for a block after merging (default: 500).
+#' @param max_merged_block_size Integer, maximum number of variants in a block after merging (default: 10000).
 #'
 #' @return returns a list containing:
 #' \describe{
@@ -461,7 +463,7 @@ filter_variants_by_ld_reference <- function(variant_ids, ld_reference_meta_file,
 #' }
 #' @noRd
 partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
-                                min_merged_block_size = 50, max_merged_block_size = 1000) {
+                                min_merged_block_size = 500, max_merged_block_size = 10000) {
   # Extract components from ld_data
   combined_matrix <- ld_data$combined_LD_matrix
   block_metadata <- ld_data$block_metadata
@@ -556,37 +558,113 @@ validate_block_structure <- function(matrix, block_metadata, variant_ids) {
   }
 }
 # Helper function to merge small blocks
-merge_blocks <- function(block_metadata, min_size, max_size) {
-  new_block_metadata <- block_metadata
-  current_block <- 1
+# Check if two blocks can be merged based on chromosome and size constraints
+can_merge <- function(block1, block2, max_size) {
+  # Check if blocks are on the same chromosome
+  same_chrom <- block1$chrom == block2$chrom
 
-  while (current_block < nrow(new_block_metadata)) {
-    # Check if current block is small and can be merged with next block
-    if (new_block_metadata$size[current_block] < min_size &&
-      current_block < nrow(new_block_metadata) &&
-      new_block_metadata$chrom[current_block] == new_block_metadata$chrom[current_block + 1]) {
-      # Check if merging would exceed max_size
-      combined_size <- new_block_metadata$size[current_block] + new_block_metadata$size[current_block + 1]
+  # Check if combined size is within limits
+  combined_size <- block1$size + block2$size
+  size_ok <- combined_size <= max_size
 
-      if (combined_size <= max_size) {
-        # Merge blocks
-        new_block_metadata$end_idx[current_block] <- new_block_metadata$end_idx[current_block + 1]
-        new_block_metadata$size[current_block] <- combined_size
+  return(same_chrom && size_ok)
+}
 
-        # Remove the merged block
-        new_block_metadata <- new_block_metadata[-1 * (current_block + 1), ]
-      } else {
-        # Skip to next block if merging would create too large a block
-        current_block <- current_block + 1
-      }
-    } else {
-      # Move to next block
-      current_block <- current_block + 1
-    }
+# Merge two blocks in the metadata dataframe
+merge_two_blocks <- function(block_metadata, idx1, idx2) {
+  # Ensure idx1 < idx2 for consistent behavior
+  if (idx1 > idx2) {
+    temp <- idx1
+    idx1 <- idx2
+    idx2 <- temp
   }
 
+  # Create a copy to avoid modifying the input directly
+  result <- block_metadata
+
+  # Update the end index and size of the first block
+  result$end_idx[idx1] <- block_metadata$end_idx[idx2]
+  result$size[idx1] <- block_metadata$size[idx1] + block_metadata$size[idx2]
+
+  # Remove the second block
+  result <- result[-idx2, ]
+
   # Renumber block IDs
-  new_block_metadata$block_id <- seq_len(nrow(new_block_metadata))
+  result$block_id <- seq_len(nrow(result))
+
+  return(result)
+}
+
+# Find small blocks and their best merge candidates
+find_merge_candidates <- function(block_metadata, min_size, max_size) {
+  candidates <- data.frame(
+    block_idx = integer(),
+    merge_with = integer(),
+    stringsAsFactors = FALSE
+  )
+
+  for (i in seq_len(nrow(block_metadata))) {
+    # Skip if block size is adequate
+    if (block_metadata$size[i] >= min_size) next
+
+    # Check previous block
+    prev_idx <- i - 1
+    can_merge_prev <- prev_idx >= 1 &&
+      can_merge(block_metadata[i, ], block_metadata[prev_idx, ], max_size)
+
+    # Check next block
+    next_idx <- i + 1
+    can_merge_next <- next_idx <= nrow(block_metadata) &&
+      can_merge(block_metadata[i, ], block_metadata[next_idx, ], max_size)
+
+    # Determine best merge option
+    if (can_merge_prev && can_merge_next) {
+      # Choose the smaller of the two to minimize impact
+      if (block_metadata$size[prev_idx] <= block_metadata$size[next_idx]) {
+        merge_with <- prev_idx
+      } else {
+        merge_with <- next_idx
+      }
+      candidates <- rbind(candidates, data.frame(block_idx = i, merge_with = merge_with))
+    } else if (can_merge_prev) {
+      candidates <- rbind(candidates, data.frame(block_idx = i, merge_with = prev_idx))
+    } else if (can_merge_next) {
+      candidates <- rbind(candidates, data.frame(block_idx = i, merge_with = next_idx))
+    }
+    # If no valid merge candidates, leave the block as is
+  }
+
+  return(candidates)
+}
+
+# Helper function to merge small blocks
+merge_blocks <- function(block_metadata, min_size, max_size) {
+  # If there's only one block or empty input, just return it
+  if (nrow(block_metadata) <= 1) {
+    return(block_metadata)
+  }
+
+  new_block_metadata <- block_metadata
+  made_changes <- TRUE
+
+  # Iterate until no more merges are possible
+  while (made_changes) {
+    # Find all current merge candidates
+    candidates <- find_merge_candidates(new_block_metadata, min_size, max_size)
+
+    # Stop if no candidates found
+    if (nrow(candidates) == 0) {
+      made_changes <- FALSE
+      break
+    }
+
+    # Process the first candidate (we only do one merge per iteration to avoid index issues)
+    new_block_metadata <- merge_two_blocks(
+      new_block_metadata,
+      candidates$block_idx[1],
+      candidates$merge_with[1]
+    )
+  }
 
   return(new_block_metadata)
 }
