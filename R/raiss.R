@@ -96,7 +96,6 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
 #' @param ref_panel A data frame containing 'chrom', 'pos', 'variant_id', 'A1', and 'A2'.
 #' @param known_zscores A data frame containing 'chrom', 'pos', 'variant_id', 'A1', 'A2', and 'z' values.
 #' @param LD_matrix Either a square matrix or a list of matrices for LD blocks.
-#' @param variant_indices Optional data frame mapping variant IDs to block IDs when LD_matrix is a list.
 #' @param lamb Regularization term added to the diagonal of the LD_matrix.
 #' @param rcond Threshold for filtering eigenvalues in the pseudo-inverse computation.
 #' @param R2_threshold R square threshold below which SNPs are filtered from the output.
@@ -106,7 +105,7 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
 #' @return A list containing filtered and unfiltered results, and filtered LD matrix.
 #' @importFrom dplyr arrange bind_rows
 #' @export
-raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, lamb = 0.01, rcond = 0.01,
+raiss <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01, rcond = 0.01,
                   R2_threshold = 0.6, minimum_ld = 5, verbose = TRUE) {
   # Determine if we can process as a single matrix
   is_single_matrix_case <- is.matrix(LD_matrix) ||
@@ -128,10 +127,6 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
   }
 
   # For list of matrices, process each block
-  if (is.null(variant_indices)) {
-    stop("variant_indices must be provided when LD_matrix is a list.")
-  }
-
   if (verbose) message("Processing multiple LD blocks...")
 
   combine_with_boundary_check <- function(combined_result, new_result) {
@@ -175,6 +170,7 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
   }
 
   results_list <- list()
+  variant_indices <- LD_matrix$variant_indices
   block_ids <- unique(variant_indices$block_id)
 
   for (block_id in block_ids) {

@@ -250,51 +250,50 @@ extract_LD_for_region <- function(LD_matrix, variants, region, extract_coordinat
 
 # Create a combined LD matrix from multiple matrices
 create_combined_LD_matrix <- function(LD_matrices, variants) {
-  # Extract unique variant names from the list of variants
+  # Updated mergeVariants helper that checks the structure of each element.
   mergeVariants <- function(LD_variants_list) {
-    # Initialize an empty vector to store the merged variants
     mergedVariants <- character(0)
-
-    # Loop over the list of LD matrices using sapply
-    sapply(LD_variants_list, function(LD_variants) {
-      # Extract the variants from the current LD matrix
-      currentVariants <- get_nested_element(LD_variants, "variants")
-      if (length(currentVariants) == 0) {
-        return(NULL)
-      }
-
-      # Merge variants with the previously merged variants vector
-      # Checking if the last variant is the same as the first of the current, if so, skip the first
-      if (length(mergedVariants) > 0 && tail(mergedVariants, 1) == currentVariants[1]) {
-        mergedVariants <<- c(mergedVariants, currentVariants[-1])
+    # Loop over the list of variant information
+    for (LD_variants in LD_variants_list) {
+      currentVariants <- if (is.list(LD_variants) && !is.null(LD_variants$variants)) {
+        LD_variants$variants
       } else {
-        mergedVariants <<- c(mergedVariants, currentVariants)
+        LD_variants
       }
-    })
 
-    # Return the merged vector of variants
+      if (length(currentVariants) == 0) next
+
+      # If the last variant in mergedVariants is the same as the first of currentVariants, skip the duplicate
+      if (length(mergedVariants) > 0 && tail(mergedVariants, 1) == currentVariants[1]) {
+        mergedVariants <- c(mergedVariants, currentVariants[-1])
+      } else {
+        mergedVariants <- c(mergedVariants, currentVariants)
+      }
+    }
     return(mergedVariants)
   }
+
   unique_variants <- mergeVariants(variants)
   # Initialize an empty combined LD matrix with the unique variants
   combined_LD_matrix <- matrix(0, nrow = length(unique_variants), ncol = length(unique_variants))
   rownames(combined_LD_matrix) <- unique_variants
   colnames(combined_LD_matrix) <- unique_variants
-  # Define a function to align the values from each LD matrix to the combined matrix
+
+  # Function to align the values from each LD matrix to the combined matrix
   align_matrix <- function(ld_matrix, combined_matrix, variant_names) {
-    # Find the indices of the variant names in the combined matrix
     indices <- match(variant_names, rownames(combined_matrix))
-    # Fill in the values for both rows and columns
     combined_matrix[indices, indices] <- ld_matrix
     return(combined_matrix)
   }
-  # Apply the fill_matrix function to each LD matrix and accumulate the results
+
+  # Use Map to pair each LD matrix with its rownames, then Reduce to fill the combined matrix.
   combined_LD_matrix <- Reduce(
     function(x, y) align_matrix(y[[1]], x, y[[2]]),
     Map(list, LD_matrices, lapply(LD_matrices, rownames)),
     combined_LD_matrix
   )
-  combined_LD_matrix
+
+  return(combined_LD_matrix)
 }
 
 #' Load and Process Linkage Disequilibrium (LD) Matrix
@@ -501,6 +500,7 @@ validate_block_structure <- function(matrix, block_metadata, variant_ids) {
   validation_failed <- FALSE
   validation_message <- character(0)
 
+  # Iterate over all pairs of distinct blocks
   for (i in 1:(nrow(block_metadata) - 1)) {
     for (j in (i + 1):nrow(block_metadata)) {
       # Get indices for each block
@@ -520,24 +520,34 @@ validate_block_structure <- function(matrix, block_metadata, variant_ids) {
         next
       }
 
-      # Get the cross-block submatrix
+      # Get variants for each block
       block_i_vars <- variant_ids[block_i_start:block_i_end]
       block_j_vars <- variant_ids[block_j_start:block_j_end]
 
-      # Extract the cross-block matrix
-      cross_block <- matrix[block_i_vars, block_j_vars, drop = FALSE]
+      # Get shared variants (overlapping ones)
+      shared_variants <- intersect(block_i_vars, block_j_vars)
 
-      # Check if any values are non-zero (allowing for numerical precision issues)
-      max_value <- max(abs(cross_block))
-      if (max_value > 1e-10) {
-        validation_failed <- TRUE
-        validation_message <- c(
-          validation_message,
-          paste(
-            "Non-zero correlation detected between blocks", i, "and", j,
-            "- Max value:", max_value
+      # Get unique variants for each block (excluding overlaps)
+      block_i_unique <- setdiff(block_i_vars, shared_variants)
+      block_j_unique <- setdiff(block_j_vars, shared_variants)
+
+      # Only check if there are unique variants in both blocks
+      if (length(block_i_unique) > 0 && length(block_j_unique) > 0) {
+        # Extract the cross-block submatrix for unique variants
+        cross_block_unique <- matrix[block_i_unique, block_j_unique, drop = FALSE]
+
+        # Check if any values are non-zero (allowing for numerical precision issues)
+        max_value <- max(abs(cross_block_unique))
+        if (max_value > 1e-10) {
+          validation_failed <- TRUE
+          validation_message <- c(
+            validation_message,
+            paste(
+              "Non-zero correlation detected between unique variants of blocks", i, "and", j,
+              "- Max value:", max_value
+            )
           )
-        )
+        }
       }
     }
   }
@@ -550,7 +560,6 @@ validate_block_structure <- function(matrix, block_metadata, variant_ids) {
     )
   }
 }
-
 # Helper function to merge small blocks
 merge_blocks <- function(block_metadata, min_size, max_size) {
   new_block_metadata <- block_metadata
