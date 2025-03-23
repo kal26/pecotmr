@@ -2,7 +2,7 @@
 % Please edit documentation in R/colocboost_pipeline.R
 \name{load_multitask_regional_data}
 \alias{load_multitask_regional_data}
-\title{This function loads a mixture data sets for a specific region, including individual-level data (genotype, phenotype, covariate data) 
+\title{This function loads a mixture data sets for a specific region, including individual-level data (genotype, phenotype, covariate data)
 or summary statistics (sumstats, LD). Run \code{load_regional_univariate_data} and \code{load_rss_data} multiple times for different datasets}
 \usage{
 load_multitask_regional_data(
@@ -126,7 +126,7 @@ sumstat_data contains the following components if exist
 }
 }
 \description{
-This function loads a mixture data sets for a specific region, including individual-level data (genotype, phenotype, covariate data) 
+This function loads a mixture data sets for a specific region, including individual-level data (genotype, phenotype, covariate data)
 or summary statistics (sumstats, LD). Run \code{load_regional_univariate_data} and \code{load_rss_data} multiple times for different datasets
 }
 \section{Loading individual level data from multiple corhorts}{
