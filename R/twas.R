@@ -177,9 +177,7 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
         gwas_sumstats$chrom <- as.integer(gwas_sumstats$chrom)
         # check for overlapping variants
         if (!any(gwas_sumstats$pos %in% gsub("\\:.*$", "", sub("^.*?\\:", "", LD_list$combined_LD_variants)))) next
-        gwas_allele_flip <- allele_qc(gwas_sumstats[, c("chrom", "pos", "A1", "A2")], LD_list$combined_LD_variants, gwas_sumstats, c("beta", "z"),
-          match_min_prop = 0
-        )
+        gwas_allele_flip <- allele_qc(gwas_sumstats, LD_list$combined_LD_variants, c("beta", "z"), match_min_prop = 0)
         gwas_data_sumstats <- gwas_allele_flip$target_data_qced # post-qc gwas data that is flipped and corrected - gwas study level
 
         # loop through context within the context group:
@@ -189,9 +187,9 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
 
           # Step 4: harmonize weights, flip allele
           weights_matrix <- cbind(variant_id_to_df(rownames(weights_matrix)), weights_matrix)
-          weights_matrix_qced <- allele_qc(rownames(weights_matrix), LD_list$combined_LD_variants, weights_matrix,
+          weights_matrix_qced <- allele_qc(weights_matrix, LD_list$combined_LD_variants,
             colnames(weights_matrix)[!colnames(weights_matrix) %in% c("chrom", "pos", "A2", "A1")],
-            match_min_prop = 0, target_gwas = FALSE
+            match_min_prop = 0
           )
           weights_matrix_subset <- as.matrix(weights_matrix_qced$target_data_qced[, !colnames(weights_matrix_qced$target_data_qced) %in% c(
             "chrom",
@@ -220,11 +218,11 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
             results[[molecular_id]][["susie_weights_intermediate_qced"]][[context]] <- twas_weights_data[[molecular_id]]$susie_results[[context]][c("pip", "cs_variants", "cs_purity")]
             names(results[[molecular_id]][["susie_weights_intermediate_qced"]][[context]][["pip"]]) <- rownames(weights_matrix) # original variants that is not qced yet
             pip <- results[[molecular_id]][["susie_weights_intermediate_qced"]][[context]][["pip"]]
-            pip_qced <- allele_qc(names(pip), LD_list$combined_LD_variants, cbind(variant_id_to_df(names(pip)), pip), "pip", match_min_prop = 0)
+            pip_qced <- allele_qc(cbind(variant_id_to_df(names(pip)), pip), LD_list$combined_LD_variants, "pip", match_min_prop = 0)
             results[[molecular_id]][["susie_weights_intermediate_qced"]][[context]][["pip"]] <- abs(pip_qced$target_data_qced$pip)
             names(results[[molecular_id]][["susie_weights_intermediate_qced"]][[context]][["pip"]]) <- paste0("chr", pip_qced$target_data_qced$variant_id)
             results[[molecular_id]][["susie_weights_intermediate_qced"]][[context]][["cs_variants"]] <- lapply(results[[molecular_id]][["susie_weights_intermediate_qced"]][[context]][["cs_variants"]], function(x) {
-              variant_qc <- allele_qc(x, LD_list$combined_LD_variants, x, match_min_prop = 0)
+              variant_qc <- allele_qc(x, LD_list$combined_LD_variants, match_min_prop = 0)
               paste0("chr", variant_qc$target_data_qced$variant_id[variant_qc$target_data_qced$variant_id %in% postqc_weight_variants])
             })
           }

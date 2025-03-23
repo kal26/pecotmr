@@ -1,4 +1,4 @@
-' This function loads a mixture data sets for a specific region, including individual-level data (genotype, phenotype, covariate data)
+#' This function loads a mixture data sets for a specific region, including individual-level data (genotype, phenotype, covariate data)
 #' or summary statistics (sumstats, LD). Run \code{load_regional_univariate_data} and \code{load_rss_data} multiple times for different datasets
 #'
 #' @section Loading individual level data from multiple corhorts
@@ -205,8 +205,8 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
         # FIXME later: when consider multiple LD reference
         tmp <- load_rss_data(
           sumstat_path = sumstat_path, column_file_path = column_file_path,
-          n_sample = n_samples[ii], n_case = n_cases[ii], n_control = n_controls[ii], 
-          region = association_window, filter_value = filter_value, 
+          n_sample = n_samples[ii], n_case = n_cases[ii], n_control = n_controls[ii],
+          region = association_window, filter_value = filter_value,
           filter_column_index = filter_column_index, comment_string = comment_string
         )
         if (!("variant_id" %in% colnames(tmp$sumstats))) {

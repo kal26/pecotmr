@@ -26,10 +26,9 @@ rss_basic_qc <- function(sumstats, LD_data, skip_region = NULL, remove_indels = 
     stop("Missing columns in sumstats: ", paste(missing_cols, collapse = ", "))
   }
 
-  target_variants <- sumstats[, c("chrom", "pos", "A1", "A2")]
   ref_variants <- LD_data$combined_LD_variants
 
-  allele_flip <- allele_qc(target_variants, ref_variants, sumstats,
+  allele_flip <- allele_qc(sumstats, ref_variants,
     col_to_flip = c("beta", "z"),
     match_min_prop = 0, remove_dups = TRUE, remove_indels = remove_indels,
     remove_strand_ambiguous = TRUE

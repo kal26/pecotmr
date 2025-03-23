@@ -685,11 +685,11 @@ load_multitrait_R_sumstat <- function(susie_fit, sumstats_db, coverage = NULL, t
               ld_bim_file <- vroom(bim_file_path)
 
               # Perform allele quality control
-              flipped_data <- allele_qc(data[, 1:4], ld_bim_file$V2, data,
+              flipped_data <- allele_qc(data, ld_bim_file$V2,
                 col_to_flip = c(value_column),
                 match_min_prop = 0, remove_dups = FALSE,
                 remove_indels = FALSE, remove_strand_ambiguous = FALSE,
-                flip_strand = FALSE, remove_unmatched = TRUE, target_gwas = FALSE
+                flip_strand = FALSE, remove_unmatched = TRUE
               )$target_data_qced
               return(flipped_data)
             }

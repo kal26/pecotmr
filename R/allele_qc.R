@@ -1,11 +1,11 @@
-#' Match alleles between target_variants and ref_variants
+#' Match alleles between target data and reference variants
 #'
 #' Match by ("chrom", "A1", "A2" and "pos"), accounting for possible
 #' strand flips and major/minor allele flips (opposite effects and zscores).
 #'
-#' @param target_variants A data frame with columns "chrom", "pos", "A1", "A2" or strings in the format of "chr:pos:A2:A1"/"chr:pos_A2_A1".
-#' @param ref_variants A data frame with columns "chrom", "pos", "A1", "A2" or strings in the format of "chr:pos:A2:A1"/"chr:pos_A2_A1".
-#' @param target_data A data frame on which QC procedures will be applied.
+#' @param target_data A data frame with columns "chrom", "pos", "A2", "A1" (and optionally other columns like "beta" or "z"),
+#'   or a vector of strings in the format of "chr:pos:A2:A1"/"chr:pos_A2_A1". Can be automatically converted to a data frame if a vector.
+#' @param ref_variants A data frame with columns "chrom", "pos", "A2", "A1" or strings in the format of "chr:pos:A2:A1"/"chr:pos_A2_A1".
 #' @param col_to_flip The name of the column in target_data where flips are to be applied.
 #' @param match_min_prop Minimum proportion of variants in the smallest data
 #'   to be matched, otherwise stops with an error. Default is 20%.
@@ -23,10 +23,10 @@
 #' @importFrom dplyr if_else
 #' @importFrom tidyr separate
 #' @export
-allele_qc <- function(target_variants, ref_variants, target_data, col_to_flip = NULL,
+allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
                       match_min_prop = 0.2, remove_dups = TRUE,
                       remove_indels = FALSE, remove_strand_ambiguous = TRUE,
-                      flip_strand = FALSE, remove_unmatched = TRUE, remove_same_vars = FALSE, target_gwas = TRUE) {
+                      flip_strand = FALSE, remove_unmatched = TRUE, remove_same_vars = FALSE) {
   strand_flip <- function(ref) {
     # Define a mapping for complementary bases
     base_mapping <- c("A" = "T", "T" = "A", "G" = "C", "C" = "G")
@@ -63,17 +63,8 @@ allele_qc <- function(target_variants, ref_variants, target_data, col_to_flip = 
   }
 
   # transform all inputs to dataframe
-  target_variants <- variant_id_to_df(target_variants)
   ref_variants <- variant_id_to_df(ref_variants)
-  if (isTRUE(target_gwas)) target_data <- variant_id_to_df(target_data)
-
-  target_data <- target_data %>% mutate(target_variants)
-  columns_to_remove <- c("chromosome", "position", "ref", "alt", "variant_id")
-
-  # Check if any of the specified columns are present
-  if (any(columns_to_remove %in% colnames(target_data))) {
-    target_data <- select(target_data, -any_of(columns_to_remove))
-  }
+  target_data <- variant_id_to_df(target_data)
 
   match_result <- merge(target_data, ref_variants, by = c("chrom", "pos"), all = FALSE, suffixes = c(".target", ".ref")) %>%
     # match target & ref by chrom and position
@@ -148,7 +139,6 @@ allele_qc <- function(target_variants, ref_variants, target_data, col_to_flip = 
   # Remove all unnecessary columns used to determine qc status
   # Finally keep those variants with FLAG keep = TRUE
   result <- match_result[match_result$keep, , drop = FALSE]
-
 
   result <- result %>%
     select(-(flip1.ref:keep)) %>%
@@ -230,9 +220,8 @@ align_variant_names <- function(source, reference, remove_indels = FALSE) {
   reference_df <- variant_id_to_df(reference)
 
   qc_result <- allele_qc(
-    target_variants = source_df,
-    ref_variants = reference_df,
     target_data = source_df,
+    ref_variants = reference_df,
     col_to_flip = NULL,
     match_min_prop = 0,
     remove_dups = TRUE,
