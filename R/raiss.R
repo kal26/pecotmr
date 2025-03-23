@@ -127,42 +127,17 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
 
   if (verbose) message("Processing multiple LD blocks...")
 
-  combine_with_boundary_check <- function(combined_result, new_result) {
-    # If either is empty, simply return the non-empty one or empty data frame
-    if (nrow(combined_result) == 0) {
-      return(new_result)
-    }
-    if (nrow(new_result) == 0) {
-      return(combined_result)
-    }
-
-    # Check if the last variant of combined matches the first of new
-    last_var <- combined_result$variant_id[nrow(combined_result)]
-    first_var <- new_result$variant_id[1]
-
-    if (last_var == first_var) {
-      if (new_result$raiss_R2[1] > combined_result$raiss_R2[nrow(combined_result)]) {
-        # Replace the last row in combined with first row from new
-        combined_result[nrow(combined_result), ] <- new_result[1, ]
-      }
-
-      # Add remaining rows from new (excluding first)
-      if (nrow(new_result) > 1) {
-        combined_result <- bind_rows(combined_result, new_result[-1, ])
-      }
-    } else {
-      combined_result <- bind_rows(combined_result, new_result)
-    }
-
-    return(combined_result)
-  }
-
+  # Prepare list to collect results from each block
   results_list <- list()
+
+  # Get unique block IDs
   block_ids <- unique(variant_indices$block_id)
 
+  # Process each block
   for (block_id in block_ids) {
     if (verbose) message(paste("Processing block", block_id, "of", length(block_ids)))
 
+    # Get variants in this block
     block_variant_ids <- variant_indices$variant_id[variant_indices$block_id == block_id]
 
     # Subset ref_panel and LD_matrix for this block
@@ -170,6 +145,8 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
     block_ref_panel <- ref_panel[block_indices, ]
     block_LD_matrix <- LD_matrix$ld_matrices[[block_id]]
     block_known_zscores <- known_zscores %>% filter(variant_id %in% block_variant_ids)
+
+    # Check dimensions match
     if (nrow(block_LD_matrix) != nrow(block_ref_panel)) {
       stop(paste("Block", block_id, ": LD matrix dimension does not match number of variants in reference panel"))
     }
@@ -187,39 +164,30 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, variant_indices = NULL, l
     }
   }
 
+  # If no valid blocks were processed
   if (length(results_list) == 0) {
     if (verbose) message("No blocks could be processed. Check that known_zscores overlap with variants in the blocks.")
     return(NULL)
   }
 
-  # Combine results sequentially to handle boundary duplicates
-  combined_nofilter <- results_list[[1]]$result_nofilter
-  combined_filter <- results_list[[1]]$result_filter
-
-  if (length(results_list) > 1) {
-    for (i in 2:length(results_list)) {
-      combined_nofilter <- combine_with_boundary_check(
-        combined_nofilter,
-        results_list[[i]]$result_nofilter
-      )
-
-      combined_filter <- combine_with_boundary_check(
-        combined_filter,
-        results_list[[i]]$result_filter
-      )
-    }
-  }
-
+  # Combine results from all blocks
+  nofilter_results <- results_list %>% lapply(function(x) x$result_nofilter) %>% bind_rows()
+  filter_results <- results_list %>% lapply(function(x) x$result_filter) %>% bind_rows()
   ld_filtered_list <- lapply(results_list, function(x) x$LD_mat)
-  variant_list <- lapply(ld_filtered_list, function(ld) data.frame(variants = colnames(ld)))
+  variant_list <- lapply(ld_filtered_list, function(ld) data.frame(variants = colnames(ld)) )
   combined_LD_matrix <- create_combined_LD_matrix(
     LD_matrices = ld_filtered_list,
     variants = variant_list
-  )$matrix
+  )
 
+  # Combine into data frames
+  result_nofilter <- bind_rows(nofilter_results) %>% arrange(pos)
+  result_filter <- bind_rows(filter_results) %>% arrange(pos)
+
+  # Return combined results
   return(list(
-    result_nofilter = combined_nofilter,
-    result_filter = combined_filter,
+    result_nofilter = result_nofilter,
+    result_filter = result_filter,
     LD_mat = combined_LD_matrix
   ))
 }
