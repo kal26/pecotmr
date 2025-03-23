@@ -339,17 +339,16 @@ create_combined_LD_matrix <- function(LD_matrices, variants) {
 load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL) {
   # Intersect LD metadata with specified regions using updated function
   intersected_LD_files <- get_regional_ld_meta(LD_meta_file_path, region)
-
+  
   # Extract file paths for LD and bim files
   LD_file_paths <- intersected_LD_files$intersections$LD_file_paths
   bim_file_paths <- intersected_LD_files$intersections$bim_file_paths
-
+  
   # Using a for loop here to allow for rm() in each loop to save memory
   extracted_LD_matrices_list <- list()
   extracted_LD_variants_list <- list()
-  block_sizes <- integer(length(LD_file_paths))
   block_chroms <- character(length(LD_file_paths))
-
+  
   # Process each LD block individually
   for (j in seq_along(LD_file_paths)) {
     LD_matrix_processed <- process_LD_matrix(LD_file_paths[j], bim_file_paths[j])
@@ -361,53 +360,52 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     )
     extracted_LD_matrices_list[[j]] <- extracted_LD_list$extracted_LD_matrix
     extracted_LD_variants_list[[j]] <- extracted_LD_list$extracted_LD_variants
-    block_sizes[j] <- ifelse(j == 1, nrow(extracted_LD_variants_list[[j]]), nrow(extracted_LD_variants_list[[j]]) - 1)
+    
     if (nrow(extracted_LD_variants_list[[j]]) > 0) {
       block_chroms[j] <- as.character(extracted_LD_variants_list[[j]]$chrom[1])
     } else {
       # Use region chromosome as fallback for empty blocks
       block_chroms[j] <- as.character(intersected_LD_files$region$chrom)
     }
-
+    
     # Remove large objects to free memory
     rm(LD_matrix_processed, extracted_LD_list)
   }
-
-
+  
   # Create combined LD matrix with accurate block positions
   combined_LD_result <- create_combined_LD_matrix(
     LD_matrices = extracted_LD_matrices_list,
     variants = extracted_LD_variants_list
   )
-
+  
   # Extract the matrix and position information
   combined_LD_matrix <- combined_LD_result$matrix
-
-  # Create block metadata with the accurate positions from the merge process
+  
+  # Create block metadata with size calculated from the actual block positions
   block_metadata <- data.frame(
     block_id = seq_along(LD_file_paths),
     chrom = block_chroms,
-    size = block_sizes,
+    size = combined_LD_result$block_ends - combined_LD_result$block_starts + 1,
     start_idx = combined_LD_result$block_starts,
     end_idx = combined_LD_result$block_ends,
     stringsAsFactors = FALSE
   )
-
+  
   # Remove large objects to free memory
   rm(extracted_LD_matrices_list)
-
+  
   # Create reference panel
   ref_panel <- do.call(rbind, lapply(strsplit(rownames(combined_LD_matrix), ":"), function(x) {
     data.frame(chrom = x[1], pos = as.integer(x[2]), A2 = x[3], A1 = x[4])
   }))
-
+  
   merged_variant_list <- do.call(rbind, extracted_LD_variants_list)
   ref_panel$variant_id <- rownames(combined_LD_matrix)
-
+  
   if ("variance" %in% colnames(merged_variant_list)) {
     ref_panel$variance <- merged_variant_list$variance[match(rownames(combined_LD_matrix), merged_variant_list$variants)]
   }
-
+  
   # Return the combined LD list
   combined_LD_list <- list(
     combined_LD_variants = rownames(combined_LD_matrix),
@@ -415,7 +413,7 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     ref_panel = ref_panel,
     block_metadata = block_metadata
   )
-
+  
   return(combined_LD_list)
 }
 
