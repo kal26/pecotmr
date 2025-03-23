@@ -520,23 +520,18 @@ validate_block_structure <- function(matrix, block_metadata, variant_ids) {
         next
       }
 
-      # Get variants for each block
-      block_i_vars <- variant_ids[block_i_start:block_i_end]
-      block_j_vars <- variant_ids[block_j_start:block_j_end]
+      # Get variants for each block, EXCLUDING THE BOUNDARY VARIANTS
+      # For block i, exclude the last variant (potential overlap with next block)
+      # For block j, exclude the first variant (potential overlap with previous block)
+      block_i_vars <- variant_ids[block_i_start:(block_i_end - 1)]
+      block_j_vars <- variant_ids[(block_j_start + 1):block_j_end]
 
-      # Get shared variants (overlapping ones)
-      shared_variants <- intersect(block_i_vars, block_j_vars)
+      # Only check if there are variants in both blocks
+      if (length(block_i_vars) > 0 && length(block_j_vars) > 0) {
+        # Extract the cross-block submatrix for these variants
+        cross_block_unique <- matrix[block_i_vars, block_j_vars, drop = FALSE]
 
-      # Get unique variants for each block (excluding overlaps)
-      block_i_unique <- setdiff(block_i_vars, shared_variants)
-      block_j_unique <- setdiff(block_j_vars, shared_variants)
-
-      # Only check if there are unique variants in both blocks
-      if (length(block_i_unique) > 0 && length(block_j_unique) > 0) {
-        # Extract the cross-block submatrix for unique variants
-        cross_block_unique <- matrix[block_i_unique, block_j_unique, drop = FALSE]
-
-        # Check if any values are non-zero (allowing for numerical precision issues)
+        # Check if any values are non-zero
         max_value <- max(abs(cross_block_unique))
         if (max_value > 1e-10) {
           validation_failed <- TRUE
