@@ -250,49 +250,36 @@ extract_LD_for_region <- function(LD_matrix, variants, region, extract_coordinat
 
 # Create a combined LD matrix from multiple matrices
 create_combined_LD_matrix <- function(LD_matrices, variants) {
-  # Extract unique variant names from the list of variants with position tracking
+  # Extract unique variant names from the list of variants
   mergeVariants <- function(LD_variants_list) {
+    # Initialize an empty vector to store the merged variants
     mergedVariants <- character(0)
-    block_starts <- integer(length(LD_variants_list))
-    block_ends <- integer(length(LD_variants_list))
 
-    for (i in seq_along(LD_variants_list)) {
-      currentVariants <- get_nested_element(LD_variants_list[[i]], "variants")
-
+    # Loop over the list of LD matrices using sapply
+    sapply(LD_variants_list, function(LD_variants) {
+      # Extract the variants from the current LD matrix
+      currentVariants <- get_nested_element(LD_variants, "variants")
       if (length(currentVariants) == 0) {
-        block_starts[i] <- length(mergedVariants) + 1
-        block_ends[i] <- length(mergedVariants)
-        next
+        return(NULL)
       }
 
-      block_starts[i] <- length(mergedVariants) + 1
-
-      # Merge variants, handling overlap - using <<- to modify parent environment variable
+      # Merge variants with the previously merged variants vector
+      # Checking if the last variant is the same as the first of the current, if so, skip the first
       if (length(mergedVariants) > 0 && tail(mergedVariants, 1) == currentVariants[1]) {
         mergedVariants <<- c(mergedVariants, currentVariants[-1])
       } else {
         mergedVariants <<- c(mergedVariants, currentVariants)
       }
+    })
 
-      block_ends[i] <- length(mergedVariants)
-    }
-
-    return(list(
-      variants = mergedVariants,
-      block_starts = block_starts,
-      block_ends = block_ends
-    ))
+    # Return the merged vector of variants
+    return(mergedVariants)
   }
-
-  # Get merged variants and block positions
-  merged_result <- mergeVariants(variants)
-  unique_variants <- merged_result$variants
-
+  unique_variants <- mergeVariants(variants)
   # Initialize an empty combined LD matrix with the unique variants
   combined_LD_matrix <- matrix(0, nrow = length(unique_variants), ncol = length(unique_variants))
   rownames(combined_LD_matrix) <- unique_variants
   colnames(combined_LD_matrix) <- unique_variants
-
   # Define a function to align the values from each LD matrix to the combined matrix
   align_matrix <- function(ld_matrix, combined_matrix, variant_names) {
     # Find the indices of the variant names in the combined matrix
@@ -301,20 +288,13 @@ create_combined_LD_matrix <- function(LD_matrices, variants) {
     combined_matrix[indices, indices] <- ld_matrix
     return(combined_matrix)
   }
-
-  # Apply the align_matrix function to each LD matrix and accumulate the results
+  # Apply the fill_matrix function to each LD matrix and accumulate the results
   combined_LD_matrix <- Reduce(
     function(x, y) align_matrix(y[[1]], x, y[[2]]),
     Map(list, LD_matrices, lapply(LD_matrices, rownames)),
     combined_LD_matrix
   )
-
-  # Return both the matrix and block positions
-  return(list(
-    matrix = combined_LD_matrix,
-    block_starts = merged_result$block_starts,
-    block_ends = merged_result$block_ends
-  ))
+  combined_LD_matrix
 }
 
 #' Load and Process Linkage Disequilibrium (LD) Matrix
@@ -360,7 +340,6 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     )
     extracted_LD_matrices_list[[j]] <- extracted_LD_list$extracted_LD_matrix
     extracted_LD_variants_list[[j]] <- extracted_LD_list$extracted_LD_variants
-
     if (nrow(extracted_LD_variants_list[[j]]) > 0) {
       block_chroms[j] <- as.character(extracted_LD_variants_list[[j]]$chrom[1])
     } else {
@@ -372,22 +351,21 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     rm(LD_matrix_processed, extracted_LD_list)
   }
 
-  # Create combined LD matrix with accurate block positions
-  combined_LD_result <- create_combined_LD_matrix(
+  # Create combined LD matrix
+  combined_LD_matrix <- create_combined_LD_matrix(
     LD_matrices = extracted_LD_matrices_list,
     variants = extracted_LD_variants_list
   )
-
-  # Extract the matrix and position information
-  combined_LD_matrix <- combined_LD_result$matrix
-
-  # Create block metadata with size calculated from the actual block positions
+  combined_LD_variants = rownames(combined_LD_matrix)
+  
+  # Now create block_metadata with all the information we've accumulated
+  block_variants <- lapply(extracted_LD_variants_list, function(v) v$variants )
   block_metadata <- data.frame(
     block_id = seq_along(LD_file_paths),
     chrom = block_chroms,
-    size = combined_LD_result$block_ends - combined_LD_result$block_starts + 1,
-    start_idx = combined_LD_result$block_starts,
-    end_idx = combined_LD_result$block_ends,
+    size = sapply(block_variants, length),
+    start_idx = sapply(block_variants, function(v) min(match(v, combined_LD_variants)) ),
+    end_idx = sapply(block_variants, function(v) max(match(v, combined_LD_variants)) ),
     stringsAsFactors = FALSE
   )
 
@@ -408,7 +386,7 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
 
   # Return the combined LD list
   combined_LD_list <- list(
-    combined_LD_variants = rownames(combined_LD_matrix),
+    combined_LD_variants = combined_LD_variants,
     combined_LD_matrix = combined_LD_matrix,
     ref_panel = ref_panel,
     block_metadata = block_metadata
