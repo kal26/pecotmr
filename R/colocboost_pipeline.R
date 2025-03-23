@@ -760,7 +760,6 @@ qc_regional_data <- function(region_data,
         if (impute) {
           LD_matrix <- partition_LD_matrix(LD_data)
           impute_results <- raiss(LD_data$ref_panel, sumstat$sumstats, LD_matrix,
-            variant_indices = LD_matrix$variant_indices,
             rcond = impute_opts$rcond,
             R2_threshold = impute_opts$R2_threshold, minimum_ld = impute_opts$minimum_ld, lamb = impute_opts$lamb
           )

@@ -220,7 +220,7 @@ rss_analysis_pipeline <- function(
   # Perform imputation
   if (impute) {
     LD_matrix <- partition_LD_matrix(LD_data)
-    impute_results <- raiss(LD_data$ref_panel, sumstats, LD_matrix, variant_indices = LD_matrix$variant_indices, rcond = impute_opts$rcond, R2_threshold = impute_opts$R2_threshold, minimum_ld = impute_opts$minimum_ld, lamb = impute_opts$lamb)
+    impute_results <- raiss(LD_data$ref_panel, sumstats, LD_matrix, rcond = impute_opts$rcond, R2_threshold = impute_opts$R2_threshold, minimum_ld = impute_opts$minimum_ld, lamb = impute_opts$lamb)
     sumstats <- impute_results$result_filter
     LD_mat <- impute_results$LD_mat
   }
