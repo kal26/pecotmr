@@ -393,12 +393,6 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     stringsAsFactors = FALSE
   )
 
-  # Create combined LD matrix
-  combined_LD_matrix <- create_combined_LD_matrix(
-    LD_matrices = extracted_LD_matrices_list,
-    variants = extracted_LD_variants_list
-  )
-
   # Remove large objects to free memory
   rm(extracted_LD_matrices_list)
 
