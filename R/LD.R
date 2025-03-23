@@ -7,6 +7,10 @@ check_consecutive_regions <- function(df) {
     as.integer(sub("^chr", "", df$chrom)), # Remove 'chr' and convert to integer
     as.integer(df$chrom)
   ) # Convert to integer if not already
+    
+  # Remove duplicated rows based on 'chrom' and 'start' columns
+  df <- distinct(df, chrom, start, .keep_all = TRUE) %>%
+    arrange(chrom, start)
 
   for (chr in unique(df$chrom)) {
     chr_rows <- which(df$chrom == chr)
@@ -20,9 +24,6 @@ check_consecutive_regions <- function(df) {
     }
   }
 
-  # Remove duplicated rows based on 'chrom' and 'start' columns
-  df <- distinct(df, chrom, start, .keep_all = TRUE) %>%
-    arrange(chrom, start)
 
   return(df)
 }
