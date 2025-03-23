@@ -1,4 +1,4 @@
-#' This function loads a mixture data sets for a specific region, including individual-level data (genotype, phenotype, covariate data)
+' This function loads a mixture data sets for a specific region, including individual-level data (genotype, phenotype, covariate data)
 #' or summary statistics (sumstats, LD). Run \code{load_regional_univariate_data} and \code{load_rss_data} multiple times for different datasets
 #'
 #' @section Loading individual level data from multiple corhorts
@@ -27,16 +27,14 @@
 #' @param LD_meta_file_path_list A vector of path of LD_metadata, LD_metadata is a data frame specifying LD blocks with columns "chrom", "start", "end", and "path". "start" and "end" denote the positions of LD blocks. "path" is the path of each LD block, optionally including bim file paths.
 #' @param match_LD_sumstat A vector of index of sumstat matched to LD if mulitple sumstat files
 #' @param conditions_list_sumstat A vector of strings representing different sumstats.
-#' @param n_sample User-specified sample size. If unknown, set as 0 to retrieve from the sumstat file.
-#' @param n_case User-specified number of cases.
-#' @param n_control User-specified number of controls.
+#' @param n_samples User-specified sample size. If unknown, set as 0 to retrieve from the sumstat file.
+#' @param n_cases User-specified number of cases.
+#' @param n_controls User-specified number of controls.
 #' @param region The region where tabix use to subset the input dataset.
-#' @param target User-specified gene/phenotype name used to further subset the phenotype data.
-#' @param target_column_index Filter this specific column for the target.
+#' @param filter_value User-specified gene/phenotype name used to further subset the phenotype data.
+#' @param filter_column_index Filter this specific column for the filter_value.
 #' @param comment_string comment sign in the column_mapping file, default is #
 #' @param extract_coordinates Optional data frame with columns "chrom" and "pos" for specific coordinates extraction.
-#'
-#'
 #'
 #' @return A list containing the individual_data and sumstat_data:
 #' individual_data contains the following components if exist
@@ -87,12 +85,11 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
                                          LD_meta_file_path_list = NULL,
                                          match_LD_sumstat = NULL, # a vector of index of sumstat matched to LD if mulitple sumstat files
                                          conditions_list_sumstat = NULL,
-                                         subset = TRUE,
                                          n_samples = 0,
                                          n_cases = 0,
                                          n_controls = 0,
-                                         target = "",
-                                         target_column_index = "",
+                                         filter_value = NULL,
+                                         filter_column_index = NULL,
                                          comment_string = "#",
                                          extract_coordinates = NULL) {
   if (is.null(genotype_list) & is.null(sumstat_path_list)) {
@@ -208,8 +205,9 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
         # FIXME later: when consider multiple LD reference
         tmp <- load_rss_data(
           sumstat_path = sumstat_path, column_file_path = column_file_path,
-          n_sample = n_samples[ii], n_case = n_cases[ii], n_control = n_controls[ii], target = target, region = association_window,
-          target_column_index = target_column_index, comment_string = comment_string
+          n_sample = n_samples[ii], n_case = n_cases[ii], n_control = n_controls[ii], 
+          region = association_window, filter_value = filter_value, 
+          filter_column_index = filter_column_index, comment_string = comment_string
         )
         if (!("variant_id" %in% colnames(tmp$sumstats))) {
           tmp$sumstats <- tmp$sumstats %>%
@@ -230,9 +228,6 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
     sumstat_data = sumstat_data
   ))
 }
-
-
-
 
 #' Multi-trait colocalization analysis pipeline
 #'
