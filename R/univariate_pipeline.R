@@ -154,8 +154,8 @@ univariate_analysis_pipeline <- function(
 #' @param region The region where tabix use to subset the input dataset.
 #' @param skip_region A character vector specifying regions to be skipped in the analysis (optional).
 #'                    Each region should be in the format "chrom:start-end" (e.g., "1:1000000-2000000").
-#' @param filter_value User-specified gene/phenotype name used to further subset the phenotype data.
-#' @param filter_column_index Filter this specific column for the filter_value.
+#' @param include_value User-specified gene/phenotype name used to further subset the phenotype data.
+#' @param include_column_index Filter this specific column for the include_value.
 #' @param L Initial number of causal configurations to consider in the analysis (default: 8).
 #' @param max_L Maximum number of causal configurations to consider when dynamically adjusting L (default: 20).
 #' @param l_step Step size for increasing L when the limit is reached during dynamic adjustment (default: 5).
@@ -175,7 +175,7 @@ univariate_analysis_pipeline <- function(
 #' @export
 rss_analysis_pipeline <- function(
     sumstat_path, column_file_path, LD_data, n_sample = 0, n_case = 0, n_control = 0, region = NULL, skip_region = NULL,
-    filter_value = NULL, filter_column_index = NULL,
+    include_value = NULL, include_column_index = NULL,
     qc_method = c("rss_qc", "dentist", "slalom"),
     finemapping_method = c("susie_rss", "single_effect", "bayesian_conditional_regression"),
     finemapping_opts = list(
@@ -188,8 +188,8 @@ rss_analysis_pipeline <- function(
   rss_input <- load_rss_data(
     sumstat_path = sumstat_path, column_file_path = column_file_path,
     n_sample = n_sample, n_case = n_case, n_control = n_control,
-    filter_value = filter_value, region = region,
-    filter_column_index = filter_column_index, comment_string = comment_string
+    include_value = include_value, region = region,
+    include_column_index = include_column_index, comment_string = comment_string
   )
 
   sumstats <- rss_input$sumstats
