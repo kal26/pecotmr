@@ -45,7 +45,7 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
   }
 
   # Extract zt, sig_t, and sig_i_t
-  zt <- known_zscores$z[knowns]
+  zt <- known_zscores$z
   sig_t <- LD_matrix[knowns, knowns, drop = FALSE]
   sig_i_t <- LD_matrix[unknowns, knowns, drop = FALSE]
 
