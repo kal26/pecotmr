@@ -65,6 +65,12 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
   # transform all inputs to dataframe
   ref_variants <- variant_id_to_df(ref_variants)
   target_data <- variant_id_to_df(target_data)
+  columns_to_remove <- c("chromosome", "position", "ref", "alt", "variant_id")
+
+  # Check if any of the specified columns are present
+  if (any(columns_to_remove %in% colnames(target_data))) {
+    target_data <- select(target_data, -any_of(columns_to_remove))
+  }
 
   match_result <- merge(target_data, ref_variants, by = c("chrom", "pos"), all = FALSE, suffixes = c(".target", ".ref")) %>%
     # match target & ref by chrom and position
