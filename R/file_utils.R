@@ -799,6 +799,16 @@ load_rss_data <- function(sumstat_path, column_file_path, n_sample = 0, n_case =
   sumstats <- NULL
   var_y <- NULL
   sumstats <- load_tsv_region(file_path = sumstat_path, region = region, extract_region_name = extract_region_name, region_name_col = region_name_col)
+  
+  # To keep a log message
+  n_variants <- nrow(sumstats)
+  if (n_variants == 0){
+      message(paste0("No variants in region ", region, "."))
+      return(list(sumstats = sumstats, n = NULL, var_y = NULL))
+  } else {
+      message(paste0("Region ", region, " include ", n_variants, " in input sumstats."))
+  }
+  
   # Standardize column names based on mapping
   for (name in colnames(sumstats)) {
     if (name %in% column_data$original) {

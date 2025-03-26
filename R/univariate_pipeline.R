@@ -195,6 +195,11 @@ rss_analysis_pipeline <- function(
   sumstats <- rss_input$sumstats
   n <- rss_input$n
   var_y <- rss_input$var_y
+    
+  # Check if no variants in sumstats
+  if (nrow(sumstats)==0){
+      return(list(rss_data_analyzed = sumstats))
+  }
 
   # Preprocess the input data
   preprocess_results <- rss_basic_qc(sumstats, LD_data, skip_region = skip_region, remove_indels = remove_indels)
@@ -204,7 +209,7 @@ rss_analysis_pipeline <- function(
   if (pip_cutoff_to_skip != 0) {
     if (pip_cutoff_to_skip < 0) {
       # automatically determine the cutoff to use
-      pip_cutoff_to_skip <- 3 * 1 / ncol(X)
+      pip_cutoff_to_skip <- 3 * 1 / nrow(sumstats)
     }
     top_model_pip <- susie_rss_wrapper(z = sumstats$z, R = LD_mat, L = 1, n = n, var_y = var_y)$pip
     if (!any(top_model_pip > pip_cutoff_to_skip)) {

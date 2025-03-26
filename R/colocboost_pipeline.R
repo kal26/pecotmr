@@ -680,6 +680,7 @@ qc_regional_data <- function(region_data,
       sumstats <- sumstat_data$sumstats[[i]]
       for (ii in 1:length(sumstats)) {
         sumstat <- sumstats[[ii]]
+        if (nrow(sumstat$sumstats) == 0) next
         n <- sumstat$n
         var_y <- sumstat$var_y
         conditions_sumstat <- names(sumstats)[ii]
