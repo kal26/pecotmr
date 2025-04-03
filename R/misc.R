@@ -597,3 +597,82 @@ z_to_beta_se <- function(z, maf, n) {
   se <- 1 / denominator
   return(data.frame(beta = beta, se = se, maf = p))
 }
+
+#' Filter events based on provided context name pattern
+#'       
+#' @param events A character vector of event names 
+#' @param filters A data frame with character column of type_pattern, valid_pattern, and exclude_pattern. 
+#' @param condition Optional label context name 
+#' @param remove_all_group Logical if \code{TRUE}, removes all events from the same group and character-defined context.
+filter_molecular_events <- function(events, filters, condition = NULL, remove_all_group = FALSE) {
+  # filters is a list of filter specifications
+  # Each filter spec must have:
+  #   type_pattern: pattern to identify event type
+  #   And at least ONE of:
+  #   valid_pattern: pattern that must exist in group
+  #   exclude_pattern: pattern to exclude
+
+  filtered_events <- events
+  for (filter in filters) {
+    if (is.null(filter$type_pattern) ||
+      (is.null(filter$valid_pattern) && is.null(filter$exclude_pattern))) {
+      stop("Each filter must specify type_pattern and at least one of valid_pattern or exclude_pattern")
+    }
+    # Get events of this type
+    type_events <- filtered_events[grepl(filter$type_pattern, filtered_events)]
+    type_events_all <- type_events
+    if (length(type_events) == 0) next
+    # Apply valid pattern if specified
+    if (!is.null(filter$valid_pattern)) {
+      filter$valid_pattern <- strsplit(filter$valid_pattern, ",")[[1]]
+      valid_groups <- unique(gsub(
+        filter$type_pattern, "\\1",
+        type_events[grepl(paste(filter$valid_pattern, collapse = "|"), type_events)]
+      ))
+      if (length(valid_groups) > 0) {
+        type_events <- type_events[grepl(paste(filter$valid_pattern, collapse = "|"), type_events)] # filter for valid pattern in type events
+      } else {
+        type_events <- character(0)
+      }
+    }
+    # Apply exclusions if specified
+    if (!is.null(filter$exclude_pattern)) {
+      filter$exclude_pattern <- strsplit(filter$exclude_pattern, ",")[[1]]
+      type_events <- type_events[!grepl(paste(filter$exclude_pattern, collapse = "|"), type_events)]
+    }
+    if (is.null(condition)) condition <- events
+    if (length(type_events) == length(events)) {
+      message(paste("All events matching", filter$type_pattern, "in", condition, "included in following analysis."))
+    } else if (length(type_events) == 0) {
+      message(paste("No events matching", filter$type_pattern, "in", condition, "pass the filtering."))
+      return(NULL)
+    } else {
+      exclude_events <- paste0(setdiff(type_events_all, type_events), collapse = ";")
+      message(paste("Some events,", exclude_events, "in", condition, "are removed. \n"))
+      if (remove_all_group) {
+        exclude_events <- setdiff(type_events_all, type_events)
+        exclude_groups <- gsub(filter$type_pattern, "\\1", 
+                               exclude_events[grepl(paste(filter$exclude_pattern, collapse = "|"), exclude_events)]
+        )
+        for (i in seq_along(exclude_events)) {
+            #if (!any(grepl(exclude_groups[i], type_events))) next  # skip the event if the corresponding group is all removed
+            for (x in filter$exclude_pattern) exclude_events[i] <- gsub(x, ".*", exclude_events[i]) # remove exclude pattern from the context
+            context_key <- gsub("\\b\\d+\\b", "", exclude_events[i]) # remove stand alone numbers (strings such as "lf2" or "chr8" will be kept)
+            # General pattern to match all events of same group ID and similar character structure
+            pattern_to_remove <- paste0(".*", exclude_groups[i], ".*")
+            # Identify all events that match both the context structure and group ID
+            same_group_events <- type_events[grepl(pattern_to_remove, type_events) & grepl(gsub("\\d+", "", context_key), gsub("\\d+", "", type_events))]
+            type_events <- setdiff(type_events, same_group_events)
+        }
+      }
+    }
+    # Update events list
+    filtered_events <- unique(c(
+      filtered_events[!grepl(filter$type_pattern, filtered_events)],
+      type_events
+    ))
+  }
+
+  return(filtered_events)
+}
+
