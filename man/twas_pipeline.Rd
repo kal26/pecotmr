@@ -17,7 +17,8 @@ twas_pipeline(
   mr_pval_cutoff = 0.05,
   mr_coverage_column = "cs_coverage_0.95",
   quantile_twas = FALSE,
-  output_twas_data = FALSE
+  output_twas_data = FALSE,
+  event_filters = NULL
 )
 }
 \arguments{
