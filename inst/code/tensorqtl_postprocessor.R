@@ -185,7 +185,7 @@ load_gene_coordinates <- function(params) {
 }
 
 # Calculate feature positions for cis-window filtering
-calculate_feature_positions <- function(pair_data, cis_window, gene_coords, start_distance_col = "start_distance", end_distance_col = "end_distance") {
+calculate_feature_positions <- function(qtl_data, cis_window, gene_coords, start_distance_col = "start_distance", end_distance_col = "end_distance") {
   # Extract ENSEMBL IDs from molecular_trait_object_id
   extract_ensembl <- function(ids) {
     pattern <- "^.*?(ENSG\\d+).*$"
@@ -197,7 +197,7 @@ calculate_feature_positions <- function(pair_data, cis_window, gene_coords, star
     return(ensembl_ids)
   }
 
-  unique_traits <- pair_data %>%
+  unique_traits <- qtl_data %>%
     select(molecular_trait_object_id, chrom) %>%
     distinct() %>%
     mutate(
@@ -214,7 +214,7 @@ calculate_feature_positions <- function(pair_data, cis_window, gene_coords, star
 
   # For unmapped genes, calculate approximate positions from variant data
   if (sum(is.na(merged_traits$gene_start)) > 0) {
-    fallback_positions <- pair_data %>%
+    fallback_positions <- qtl_data %>%
       filter(molecular_trait_object_id %in%
         merged_traits$molecular_trait_object_id[is.na(merged_traits$gene_start)]) %>%
       group_by(molecular_trait_object_id, chrom) %>%
@@ -263,22 +263,22 @@ calculate_filtered_variant_counts <- function(filename, params, gene_coords) {
     shQuote(filename), paste(required_cols, collapse = "\t"), awk_cols
   )
   message("Extracting minimal columns from file...")
-  pair_data <- data.table::fread(cmd = cmd) %>% mutate(chrom = standardize_chrom(chrom))
-  trait_chrom <- pair_data %>%
+  qtl_data <- data.table::fread(cmd = cmd) %>% mutate(chrom = standardize_chrom(chrom))
+  trait_chrom <- qtl_data %>%
     group_by(molecular_trait_object_id) %>%
     summarize(chrom = first(chrom))
-  original_counts <- pair_data %>%
+  original_counts <- qtl_data %>%
     group_by(molecular_trait_object_id) %>%
     summarize(n_variants_original = n())
   message("Calculating feature positions and cis windows...")
   feature_positions <- calculate_feature_positions(
-    pair_data,
+    qtl_data,
     params$cis_window,
     gene_coords
   )
   # Apply filters and count
   message("Applying MAF and cis-window filters...")
-  filtered_data <- pair_data %>%
+  filtered_data <- qtl_data %>%
     left_join(
       feature_positions %>% select(molecular_trait_object_id, cis_start, cis_end),
       by = "molecular_trait_object_id"
@@ -306,21 +306,21 @@ calculate_filtered_variant_counts <- function(filename, params, gene_coords) {
 
 load_n_variants_data <- function(params, gene_coords) {
   setwd(params$workdir)
-  if (is.null(params$pair_pattern)) {
-    stop("params$pair_pattern must be provided")
+  if (is.null(params$qtl_pattern)) {
+    stop("params$qtl_pattern must be provided")
   }
 
   if (is.null(params$n_variants_suffix)) {
     stop("params$n_variants_suffix must be provided")
   }
-  pair_files <- list.files(pattern = params$pair_pattern, full.names = TRUE)
+  qtl_files <- list.files(pattern = params$qtl_pattern, full.names = TRUE)
   # Create corresponding n_variants filenames by replacing the pattern
-  n_variants_files <- vector("character", length(pair_files))
-  for (i in seq_along(pair_files)) {
+  n_variants_files <- vector("character", length(qtl_files))
+  for (i in seq_along(qtl_files)) {
     # Extract base name by removing the pattern (removing $ from pattern)
-    cleaned_pattern <- sub("\\$$", "", params$pair_pattern) # Remove $ from end if present
+    cleaned_pattern <- sub("\\$$", "", params$qtl_pattern) # Remove $ from end if present
     cleaned_pattern <- sub("\\*", "", cleaned_pattern) # Remove * from beginning
-    base_name <- sub(cleaned_pattern, "", pair_files[i])
+    base_name <- sub(cleaned_pattern, "", qtl_files[i])
     # Add the n_variants suffix (removing wildcard and $ from pattern)
     n_variants_suffix <- sub("\\*", "", params$n_variants_suffix)
     n_variants_suffix <- sub("\\$$", "", n_variants_suffix)
@@ -329,13 +329,13 @@ load_n_variants_data <- function(params, gene_coords) {
   }
 
   # Check if each n_variants file exists, if not, calculate it
-  for (i in seq_along(pair_files)) {
-    pair_file <- pair_files[i]
+  for (i in seq_along(qtl_files)) {
+    qtl_file <- qtl_files[i]
     n_variants_file <- n_variants_files[i]
 
     if (!file.exists(n_variants_file)) {
-      message(sprintf("Calculating n_variants for %s", pair_file))
-      n_variants <- calculate_filtered_variant_counts(pair_file, params, gene_coords)
+      message(sprintf("Calculating n_variants for %s", qtl_file))
+      n_variants <- calculate_filtered_variant_counts(qtl_file, params, gene_coords)
       write.table(n_variants,
         file = gzfile(n_variants_file),
         quote = FALSE, sep = "\t", row.names = FALSE
@@ -353,10 +353,10 @@ load_n_variants_data <- function(params, gene_coords) {
   return(n_variants_data)
 }
 
-load_pair_data <- function(params, load_n_variants = FALSE) {
+load_qtl_data <- function(params, load_n_variants = FALSE) {
   setwd(params$workdir)
 
-  files <- list.files(pattern = params$pair_pattern, full.names = TRUE)
+  files <- list.files(pattern = params$qtl_pattern, full.names = TRUE)
   if (length(files) == 0) {
     stop("No pair files found")
   }
@@ -401,10 +401,10 @@ load_pair_data <- function(params, load_n_variants = FALSE) {
   ))
 }
 
-annotate_pair_with_regional <- function(pair_data, regional_data, n_variants_data = NULL, use_filtered = FALSE) {
-  if (nrow(pair_data) == 0) {
+annotate_qtl_with_regional <- function(qtl_data, regional_data, n_variants_data = NULL, use_filtered = FALSE) {
+  if (nrow(qtl_data) == 0) {
     # Return empty dataframe with n_variants column
-    return(pair_data %>% mutate(n_variants = integer(0)))
+    return(qtl_data %>% mutate(n_variants = integer(0)))
   }
 
   # Check for n_variants data first
@@ -427,15 +427,15 @@ annotate_pair_with_regional <- function(pair_data, regional_data, n_variants_dat
 
     # No n_variants information available - use counts
   } else {
-    pair_data <- pair_data %>%
+    qtl_data <- qtl_data %>%
       group_by(molecular_trait_object_id) %>%
       mutate(n_variants = n()) %>%
       ungroup()
-    return(pair_data)
+    return(qtl_data)
   }
 
   # Join to add n_variants
-  annotated_data <- pair_data %>%
+  annotated_data <- qtl_data %>%
     left_join(n_variants_info, by = "molecular_trait_object_id")
 
   # Handle cases where n_variants is missing after join
@@ -449,13 +449,13 @@ annotate_pair_with_regional <- function(pair_data, regional_data, n_variants_dat
   return(annotated_data)
 }
 
-prepare_local_pair_data <- function(pair_data, regional_data, params, should_filter = TRUE) {
+prepare_local_qtl_data <- function(qtl_data, regional_data, params, should_filter = TRUE) {
   original_data <- NULL
   filtered_data <- NULL
 
   if (should_filter) {
-    feature_positions <- calculate_feature_positions(pair_data$data, params$cis_window, pair_data$gene_coords)
-    filtered_data <- pair_data$data %>%
+    feature_positions <- calculate_feature_positions(qtl_data$data, params$cis_window, qtl_data$gene_coords)
+    filtered_data <- qtl_data$data %>%
       left_join(
         feature_positions %>% select(molecular_trait_object_id, cis_start, cis_end),
         by = "molecular_trait_object_id"
@@ -478,13 +478,13 @@ prepare_local_pair_data <- function(pair_data, regional_data, params, should_fil
     if ("n_variants" %in% colnames(filtered_data)) {
       filtered_data <- filtered_data %>%
         select(-n_variants)
-      filtered_data <- annotate_pair_with_regional(filtered_data, regional_data, n_variants_data = pair_data$n_variants_data, use_filtered = TRUE)
+      filtered_data <- annotate_qtl_with_regional(filtered_data, regional_data, n_variants_data = qtl_data$n_variants_data, use_filtered = TRUE)
     } else {
-      filtered_data <- annotate_pair_with_regional(filtered_data, regional_data, n_variants_data = pair_data$n_variants_data, use_filtered = TRUE)
+      filtered_data <- annotate_qtl_with_regional(filtered_data, regional_data, n_variants_data = qtl_data$n_variants_data, use_filtered = TRUE)
     }
   } else {
     # Annotate original data with n_variants
-    original_data <- annotate_pair_with_regional(pair_data$data, regional_data, n_variants_data = pair_data$n_variants_data, use_filtered = FALSE)
+    original_data <- annotate_qtl_with_regional(qtl_data$data, regional_data, n_variants_data = qtl_data$n_variants_data, use_filtered = FALSE)
   }
 
   if (!is.null(original_data)) {
@@ -558,16 +558,16 @@ bonferroni_local_adjustment <- function(data, params, should_filter = FALSE) {
     ifelse(should_filter, "Yes", "No")
   ))
 
-  p_col <- data$pair_data$column_info$p_col
-  pair_data_updated <- prepare_local_pair_data(
-    data$pair_data,
+  p_col <- data$qtl_data$column_info$p_col
+  qtl_data_updated <- prepare_local_qtl_data(
+    data$qtl_data,
     data$regional_data,
     params,
     should_filter
   )
 
   if (should_filter) {
-    if (is.null(pair_data_updated$filtered_data) || nrow(pair_data_updated$filtered_data) == 0) {
+    if (is.null(qtl_data_updated$filtered_data) || nrow(qtl_data_updated$filtered_data) == 0) {
       message("No data remains after filtering. Returning empty result.")
       # Create empty event level p-values
       event_level_pvalues <- data.frame(
@@ -576,7 +576,7 @@ bonferroni_local_adjustment <- function(data, params, should_filter = FALSE) {
       )
 
       result <- data
-      result$pair_data$data <- data.frame()
+      result$qtl_data$data <- data.frame()
       result$event_level_pvalues <- event_level_pvalues
       result$local_adjustment_info <- list(
         method = "bonferroni",
@@ -586,21 +586,21 @@ bonferroni_local_adjustment <- function(data, params, should_filter = FALSE) {
       return(result)
     }
 
-    adjusted_pair_data <- pair_data_updated$filtered_data %>%
+    adjusted_qtl_data <- qtl_data_updated$filtered_data %>%
       mutate(p_bonferroni_adj = pmin(1, !!sym(p_col) * n_variants))
   } else {
-    adjusted_pair_data <- pair_data_updated$original_data %>%
+    adjusted_qtl_data <- qtl_data_updated$original_data %>%
       mutate(p_bonferroni_adj = pmin(1, !!sym(p_col) * n_variants))
   }
 
   # Calculate gene-level p-values (min p-value per gene)
-  event_level_pvalues <- adjusted_pair_data %>%
+  event_level_pvalues <- adjusted_qtl_data %>%
     group_by(molecular_trait_object_id) %>%
     summarize(p_bonferroni_min = min(p_bonferroni_adj)) %>%
     ungroup()
 
   result <- data
-  result$pair_data$data <- adjusted_pair_data
+  result$qtl_data$data <- adjusted_qtl_data
   result$event_level_pvalues <- event_level_pvalues
   result$local_adjustment_info <- list(
     method = "bonferroni",
@@ -754,12 +754,12 @@ identify_permutation_snps <- function(data, params) {
     data$regional_data$regional_summary <- updated_regional_data
 
     # Identify significant SNPs using permutation threshold
-    significant_pairs <- data$pair_data$data %>%
+    significant_pairs <- data$qtl_data$data %>%
       left_join(
         updated_regional_data %>% select(molecular_trait_object_id, p_nominal_threshold),
         by = "molecular_trait_object_id"
       ) %>%
-      filter(!!sym(data$pair_data$column_info$p_col) < p_nominal_threshold)
+      filter(!!sym(data$qtl_data$column_info$p_col) < p_nominal_threshold)
 
     # Store significant SNPs
     if (is.null(data$significant_qtls)) data$significant_qtls <- list()
@@ -813,7 +813,7 @@ identify_bonferroni_fdr_snps <- function(data, params) {
   threshold <- max(significant_events[[p_bonferroni_col]], na.rm = TRUE)
 
   # Identify significant SNPs
-  significant_pairs <- data$pair_data$data %>%
+  significant_pairs <- data$qtl_data$data %>%
     filter(p_bonferroni_adj <= threshold)
 
   # Create result name
@@ -861,7 +861,7 @@ identify_qvalue_snps <- function(data, params, base_data = NULL) {
     base_data$significant_qtls[[result_name]] <- data.frame()
     return(base_data)
   }
-  snp_data <- data$pair_data$data %>%
+  snp_data <- data$qtl_data$data %>%
     filter(molecular_trait_object_id %in% significant_events)
 
   # Handle empty snp_data
@@ -872,14 +872,14 @@ identify_qvalue_snps <- function(data, params, base_data = NULL) {
   }
 
   # Check if the q-value column exists in the data
-  q_value_col <- data$pair_data$column_info$q_col
+  q_value_col <- data$qtl_data$column_info$q_col
   if (q_value_col %in% names(snp_data)) {
     message(sprintf("Using existing q-value column: %s", q_value_col))
     significant_snps <- snp_data %>%
       filter(!!sym(q_value_col) < params$fdr_threshold)
   } else {
     message("Computing q-values for each event's SNPs")
-    p_col <- data$pair_data$column_info$p_col
+    p_col <- data$qtl_data$column_info$p_col
     significant_snps <- snp_data %>%
       group_by(molecular_trait_object_id) %>%
       mutate(qvalue = safe_qvalue(!!sym(p_col))$qvalues) %>%
@@ -906,9 +906,9 @@ hierarchical_multiple_testing_correction <- function(params) {
   # Step 0: Load all data upfront
   data <- list()
   data$regional_data <- load_regional_data(params)
-  data$pair_data <- load_pair_data(params, load_n_variants = TRUE)
-  regional_base <- paste0(data$pair_data$file_prefix, ".cis_regional")
-  pair_base <- paste0(data$pair_data$file_prefix, ".cis_pairs")
+  data$qtl_data <- load_qtl_data(params, load_n_variants = TRUE)
+  regional_base <- paste0(data$qtl_data$file_prefix, ".cis_regional")
+  qtl_base <- paste0(data$qtl_data$file_prefix, ".cis_pairs")
   results <- list()
 
   # Step 1A: Permutation-based local adjustment
@@ -928,7 +928,7 @@ hierarchical_multiple_testing_correction <- function(params) {
           filter_column = "q_beta",
           filter_threshold = params$fdr_threshold
         ),
-        qtls = paste0(pair_base, ".significant_qtl.permutation_adjusted.tsv.gz")
+        qtls = paste0(qtl_base, ".significant_qtl.permutation_adjusted.tsv.gz")
       ),
       global_adjustment_info = list(
         statistics = perm_results$global_adjustment_info$statistics
@@ -952,7 +952,7 @@ hierarchical_multiple_testing_correction <- function(params) {
         filter_column = "fdr_bonferroni_min",
         filter_threshold = params$fdr_threshold
       ),
-      qtls = paste0(pair_base, ".significant_qtl.original_bonferroni_BH_adjusted.tsv.gz")
+      qtls = paste0(qtl_base, ".significant_qtl.original_bonferroni_BH_adjusted.tsv.gz")
     ),
     global_adjustment_info = list(
       statistics = bonf_orig_results$global_adjustment_info$statistics %||% list()
@@ -976,7 +976,7 @@ hierarchical_multiple_testing_correction <- function(params) {
           filter_column = "fdr_bonferroni_min",
           filter_threshold = params$fdr_threshold
         ),
-        qtls = paste0(pair_base, ".significant_qtl.filtered_bonferroni_BH_adjusted.tsv.gz")
+        qtls = paste0(qtl_base, ".significant_qtl.filtered_bonferroni_BH_adjusted.tsv.gz")
       ),
       global_adjustment_info = list(
         statistics = bonf_filt_results$global_adjustment_info$statistics %||% list()
@@ -998,7 +998,7 @@ hierarchical_multiple_testing_correction <- function(params) {
         filter_column = qvalue_results$method_name,
         filter_threshold = params$fdr_threshold
       ),
-      qtls = paste0(pair_base, ".significant_qtl.", names(qvalue_results$significant_qtls), ".tsv.gz")
+      qtls = paste0(qtl_base, ".significant_qtl.", names(qvalue_results$significant_qtls), ".tsv.gz")
     ),
     global_adjustment_info = list(
       statistics = qvalue_results$global_adjustment_info$statistics %||% list()
