@@ -144,36 +144,26 @@ load_regional_data <- function(params) {
   ))
 }
 
-# Column name extractor - handles LR vs interaction column differences
-extract_column_names <- function(file_path, sub_dir) {
+extract_column_names <- function(file_path, pvalue_pattern = "pvalue", qvalue_pattern = "qvalue") {
   header <- system(paste0("zcat ", file_path, " | head -1"), intern = TRUE)
   cols <- strsplit(header, "\t")[[1]]
-
   column_info <- list(
     all_columns = cols
   )
-
-  # Determine p-value column
-  if (sub_dir == "interaction") {
-    interaction_cols <- grep("pvalue_.*_interaction", cols, value = TRUE)
-    column_info$p_col <- if (length(interaction_cols) > 0) interaction_cols[1] else "pvalue"
-  } else {
-    column_info$p_col <- "pvalue"
-  }
-
-  # Find q-value column if it exists
-  if (sub_dir == "interaction") {
-    qval_cols <- grep("qvalue_.*_interaction", cols, value = TRUE)
-    column_info$q_col <- if (length(qval_cols) > 0) qval_cols[1] else "qvalue"
-  } else {
-    column_info$q_col <- "qvalue"
-  }
-
+  
+  # Determine p-value column using pattern
+  p_cols <- grep(pvalue_pattern, cols, value = TRUE)
+  column_info$p_col <- if (length(p_cols) > 0) p_cols[1] else "pvalue"
+  
+  # Find q-value column using pattern
+  q_cols <- grep(qvalue_pattern, cols, value = TRUE)
+  column_info$q_col <- if (length(q_cols) > 0) q_cols[1] else "qvalue"
+  
   column_info$p_idx <- which(cols == column_info$p_col)
   if (length(column_info$p_idx) == 0) {
     stop(sprintf("P-value column '%s' not found", column_info$p_col))
   }
-
+  
   return(column_info)
 }
 
@@ -251,7 +241,7 @@ calculate_feature_positions <- function(qtl_data, cis_window, gene_coords, start
 
 calculate_filtered_variant_counts <- function(filename, params, gene_coords) {
   message(sprintf("Counting per event variants in %s", basename(filename)))
-  all_cols <- extract_column_names(filename, params$sub_dir)$all_columns
+  all_cols <- extract_column_names(filename, params$pvalue_pattern, params$qvalue_pattern)$all_columns
   required_cols <- c("molecular_trait_object_id", "chrom", "pos", "af")
   col_indices <- sapply(required_cols, function(col) which(all_cols == col))
   if (any(sapply(col_indices, length) == 0)) {
@@ -362,7 +352,7 @@ load_qtl_data <- function(params, load_n_variants = FALSE) {
   }
 
   # Get column names
-  column_info <- extract_column_names(files[1], params$sub_dir)
+  column_info <- extract_column_names(files[1], params$pvalue_pattern, params$qvalue_pattern)
 
   # Only filter if pvalue_cutoff is less than 1
   filter_by_p <- params$pvalue_cutoff < 1
@@ -903,10 +893,14 @@ identify_qvalue_snps <- function(data, params, base_data = NULL) {
 # Main Application Controller
 ############################################
 hierarchical_multiple_testing_correction <- function(params) {
+  recount_n_variants = FALSE
+  if (params$maf_cutoff > 0 || params$cis_window > 0) {
+    recount_n_variants = TRUE
+  }
   # Step 0: Load all data upfront
   data <- list()
   data$regional_data <- load_regional_data(params)
-  data$qtl_data <- load_qtl_data(params, load_n_variants = TRUE)
+  data$qtl_data <- load_qtl_data(params, load_n_variants = recount_n_variants)
   regional_base <- paste0(data$qtl_data$file_prefix, ".cis_regional")
   qtl_base <- paste0(data$qtl_data$file_prefix, ".cis_pairs")
   results <- list()
@@ -960,7 +954,7 @@ hierarchical_multiple_testing_correction <- function(params) {
   )
 
   # Step 1C: Bonferroni local adjustment (filtered)
-  if (params$maf_cutoff > 0 || params$cis_window > 0) {
+  if (recount_n_variants) {
     bonf_filt_results <- bonferroni_local_adjustment(data, params, should_filter = TRUE)
     bonf_filt_results <- perform_global_adjustment(bonf_filt_results, params)
     bonf_filt_results <- identify_bonferroni_fdr_snps(bonf_filt_results, params)
