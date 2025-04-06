@@ -24,6 +24,7 @@ safe_qvalue <- function(p, ...) {
       return(qvalue(p, ...))
     },
     error = function(e) {
+      warning(e$message)
       # For "missing or infinite values" error
       if (grepl("missing or infinite", e$message)) {
         return(qvalue(p, lambda = 0, ...))
