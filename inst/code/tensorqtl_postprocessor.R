@@ -548,7 +548,7 @@ permutation_local_adjustment <- function(data, params) {
 bonferroni_local_adjustment <- function(data, params, should_filter = FALSE) {
   should_filter <- (params$maf_cutoff > 0 || params$cis_window > 0) && should_filter
   message(sprintf(
-    "Applying Bonferroni local adjustment (filter applied: %s)",
+    "Applying Bonferroni local adjustment (filter applied: %s)...",
     ifelse(should_filter, "Yes", "No")
   ))
 
@@ -608,7 +608,7 @@ bonferroni_local_adjustment <- function(data, params, should_filter = FALSE) {
 # Global Adjustment (Step 2)
 ############################################
 perform_global_adjustment <- function(data, params) {
-  message("Applying both FDR and qvalue global adjustments")
+  message("Applying both FDR and qvalue global adjustments...")
 
   if (is.null(data$event_level_pvalues) || is.null(data$local_adjustment_info)) {
     stop("Cannot perform global adjustment: no event-level p-values found")
@@ -702,7 +702,7 @@ perform_global_adjustment <- function(data, params) {
 ############################################
 
 identify_permutation_snps <- function(data, params) {
-  message("Identifying significant SNPs using permutation thresholds")
+  message("Identifying significant SNPs using permutation thresholds...")
 
   # Check if permutation data (with beta parameters) is available
   if (is.null(data$regional_data) || is.null(data$regional_data$regional_summary) ||
@@ -774,7 +774,7 @@ identify_permutation_snps <- function(data, params) {
 }
 
 identify_bonferroni_fdr_snps <- function(data, params) {
-  message("Identifying significant SNPs using Bonferroni adjusted p-value thresholds")
+  message("Identifying significant SNPs using Bonferroni adjusted p-value thresholds...")
 
   # Get FDR column for Bonferroni
   fdr_bonferroni_col <- "fdr_bonferroni_min"
@@ -828,7 +828,7 @@ identify_bonferroni_fdr_snps <- function(data, params) {
 }
 
 identify_qvalue_snps <- function(data, params, base_data = NULL) {
-  message("Identifying significant SNPs using q-value per event method")
+  message("Identifying significant SNPs using q-value per event method...")
   if (is.null(base_data)) base_data <- data
   base_data$significant_qtls <- list()
 
