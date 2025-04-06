@@ -169,13 +169,14 @@ extract_column_names <- function(file_path, pvalue_pattern = "pvalue", qvalue_pa
     all_columns = cols
   )
 
-  # Determine p-value column using pattern
   p_cols <- grep(pvalue_pattern, cols, value = TRUE)
-  column_info$p_col <- if (length(p_cols) > 0) p_cols[1] else "pvalue"
-
-  # Find q-value column using pattern
+  if (length(p_cols) > 1) stop(sprintf("Multiple p-value columns detected using input pattern %s", pvalue_pattern))
+  column_info$p_col <- p_cols[1]
+  if (is.na(column_info$p_col)) stop(sprintf("No p-value columns detected using input pattern %s", pvalue_pattern))
   q_cols <- grep(qvalue_pattern, cols, value = TRUE)
-  column_info$q_col <- if (length(q_cols) > 0) q_cols[1] else "qvalue"
+  if (length(q_cols) > 1) stop(sprintf("Multiple q-value columns detected using input pattern %s", qvalue_pattern))
+  column_info$q_col <- q_cols[1]
+  if (is.na(column_info$q_col)) column_info$q_col <- qvalue_pattern # if q-value column not detected it is okay. We can compute it later
 
   column_info$p_idx <- which(cols == column_info$p_col)
   if (length(column_info$p_idx) == 0) {
@@ -359,7 +360,7 @@ load_n_variants_data <- function(params, gene_coords) {
 
   n_variants_data <- NULL
   if (length(n_variants_files) > 0) {
-    message("Loading n_variants statistics")
+    message("Loading n_variants count data...")
     n_variants_data <- read_and_combine_files(n_variants_files) %>%
       mutate(chrom = standardize_chrom(chrom))
   }
@@ -658,7 +659,7 @@ perform_global_adjustment <- function(data, params) {
     q_columns <- c(q_columns, q_col)
 
     # Collect statistics for summary
-    for (threshold in c(0.05, 0.01)) {
+    for (threshold in sort(unique(c(0.05, 0.01, params$fdr_threshold)), decreasing = TRUE)) {
       for (adj_col in c(fdr_col, q_col)) {
         stat_name <- sprintf("%s_%.2f", adj_col, threshold)
         statistics[[stat_name]] <- sum(event_adjusted[[adj_col]] < threshold, na.rm = TRUE)
@@ -868,16 +869,16 @@ identify_qvalue_snps <- function(data, params, base_data = NULL) {
   # Check if the q-value column exists in the data
   q_value_col <- data$qtl_data$column_info$q_col
   if (q_value_col %in% names(snp_data)) {
-    message(sprintf("Using existing q-value column '%s' for qvalue-based QTL identification", q_value_col))
+    message(sprintf("Use existing q-value column '%s' for qvalue-based QTL identification", q_value_col))
     significant_snps <- snp_data %>%
       filter(!!sym(q_value_col) < params$fdr_threshold)
   } else {
-    message("Computing q-values for each event's SNPs")
     p_col <- data$qtl_data$column_info$p_col
+    message(sprintf("Computing q-values for each event's SNPs using p-value from '%s'...", p_col))
     significant_snps <- snp_data %>%
       group_by(molecular_trait_object_id) %>%
-      mutate(qvalue = safe_qvalue(!!sym(p_col))$qvalues) %>%
-      filter(qvalue < params$fdr_threshold) %>%
+      mutate(!!sym(q_value_col) := safe_qvalue(!!sym(p_col))$qvalues) %>%
+      filter(!!sym(q_value_col) < params$fdr_threshold) %>%
       ungroup()
   }
 
@@ -992,11 +993,7 @@ hierarchical_multiple_testing_correction <- function(params) {
     ),
     significant_qtls = qvalue_results$significant_qtls[[1]],
     output_metadata = list(
-      events = list(
-        path = paste0(regional_base, ".significant_events.", names(qvalue_results$significant_qtls), ".tsv.gz"),
-        filter_column = qvalue_results$method_name,
-        filter_threshold = params$fdr_threshold
-      ),
+      events = NULL, # q-value based methods copies some previous event result so it does not help to output it additionally
       qtls = paste0(qtl_base, ".significant_qtl.", names(qvalue_results$significant_qtls), ".tsv.gz")
     ),
     global_adjustment_info = list(
@@ -1050,9 +1047,10 @@ write_results <- function(results, out_dir, work_dir, to_cwd = c("regional")) {
       dir_path <- if ("events" %in% to_cwd) "." else out_dir
       events_data <- result$regional_data$regional_summary %>%
         filter(!!sym(meta$events$filter_column) < meta$events$filter_threshold)
-
-      full_path <- file.path(dir_path, meta$events$path)
-      write_delim(events_data, gzfile(full_path), delim = "\t")
+      if (nrow(events_data) > 0) {
+        full_path <- file.path(dir_path, meta$events$path)
+        write_delim(events_data, gzfile(full_path), delim = "\t")
+      }
     }
 
     # Write QTLs data
