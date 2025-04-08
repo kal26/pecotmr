@@ -55,6 +55,10 @@ compute_qvalues <- function(pvalues) {
   if (!requireNamespace("qvalue", quietly = TRUE)) {
     stop("To use this function, please install qvalue: https://www.bioconductor.org/packages/release/bioc/html/qvalue.html")
   }
+  if (all(is.na(pvalues))) {
+    message("All p-values are NA. Returning NA vector.")
+    return(rep(NA_real_, length(pvalues)))
+  }      
   tryCatch(
     {
       if (length(pvalues) < 2) {

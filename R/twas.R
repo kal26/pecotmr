@@ -103,7 +103,8 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
   # function to extract LD variance for the query region
   query_variance <- function(ld_variant_info_data, extract_coordinates) {
     ld_info_data <- do.call(rbind, ld_variant_info_data)
-    ld_info_data_filtered <- ld_info_data[ld_info_data$V4 %in% extract_coordinates$pos, , drop = FALSE]
+    ld_pos <- as.numeric(ld_info_data[, 4]) 
+    ld_info_data_filtered <- ld_info_data[ld_pos %in% extract_coordinates$pos, , drop = FALSE]
     variance_df <- ld_info_data_filtered[, c(1, 4, 5:7)] # Extract the variance column (7th column)
     colnames(variance_df) <- c("chrom", "pos", "A1", "A2", "variance")
     return(variance_df)
@@ -154,6 +155,8 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
   for (molecular_id in molecular_ids) {
     results[[molecular_id]][["chrom"]] <- chrom
     results[[molecular_id]][["data_type"]] <- if ("data_type" %in% names(twas_weights_data[[molecular_id]])) twas_weights_data[[molecular_id]]$data_type
+    results[[molecular_id]][["variant_names"]] <- list()
+
     # group contexts based on the variant position
     context_clusters <- group_contexts_by_region(twas_weights_data[[molecular_id]], molecular_id, chrom, tolerance = 5000)
 
@@ -226,7 +229,17 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
               paste0("chr", variant_qc$target_data_qced$variant_id[variant_qc$target_data_qced$variant_id %in% postqc_weight_variants])
             })
           }
-          rownames(weights_matrix_subset) <- if (!grepl("^chr", rownames(weights_matrix_subset)[1])) paste0("chr", rownames(weights_matrix_subset)) else rownames(weights_matrix_subset)
+          #rownames(weights_matrix_subset) <- if (!grepl("^chr", rownames(weights_matrix_subset)[1])) paste0("chr", rownames(weights_matrix_subset)) else rownames(weights_matrix_subset)
+          if (nrow(weights_matrix_subset) > 0) {
+              rownames(weights_matrix_subset) <- if (!grepl("^chr", rownames(weights_matrix_subset)[1])) {
+                  paste0("chr", rownames(weights_matrix_subset))
+              } else {
+                  rownames(weights_matrix_subset)
+              }
+          } else {
+              warning("weights_matrix_subset is empty. Skipping this context.")
+              next
+          }
           results[[molecular_id]][["variant_names"]][[context]][[study]] <- rownames(weights_matrix_subset)
 
           # Step 6: scale weights by variance
@@ -694,13 +707,15 @@ twas_analysis <- function(weights_matrix, gwas_sumstats_db, LD_matrix, extract_v
   gwas_sumstats_subset <- gwas_sumstats_db[match(extract_variants_objs, gwas_sumstats_db$variant_id), ]
   # Validate that the GWAS subset is not empty
   if (nrow(gwas_sumstats_subset) == 0 | all(is.na(gwas_sumstats_subset))) {
-    stop("No GWAS summary statistics found for the specified variants.")
-  }
+    warning("No GWAS summary statistics found for the specified variants.")
+    return(NULL)
+  }      
   # Check if extract_variants_objs are in the rownames of LD_matrix
   valid_indices <- extract_variants_objs %in% rownames(LD_matrix)
   if (!any(valid_indices)) {
-    stop("None of the specified variants are present in the LD matrix.")
-  }
+    warning("None of the specified variants are present in the LD matrix. Skipping this context.")
+    return(NULL)
+  }    
   # Extract only the valid indices from extract_variants_objs
   valid_variants_objs <- extract_variants_objs[valid_indices]
   # Extract LD_matrix subset using valid indices
