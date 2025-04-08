@@ -156,14 +156,7 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
     results[[molecular_id]][["chrom"]] <- chrom
     results[[molecular_id]][["data_type"]] <- if ("data_type" %in% names(twas_weights_data[[molecular_id]])) twas_weights_data[[molecular_id]]$data_type
     results[[molecular_id]][["variant_names"]] <- list()
-    for (context in names(twas_weights_data[[molecular_id]][["weights"]])) {
-      for (study in names(gwas_files)) {
-        if (is.null(results[[molecular_id]][["variant_names"]][[context]])) {
-          results[[molecular_id]][["variant_names"]][[context]] <- list()
-        }
-        results[[molecular_id]][["variant_names"]][[context]][[study]] <- rownames(twas_weights_data[[molecular_id]][["weights"]][[context]])
-      }
-    }
+
     # group contexts based on the variant position
     context_clusters <- group_contexts_by_region(twas_weights_data[[molecular_id]], molecular_id, chrom, tolerance = 5000)
 
