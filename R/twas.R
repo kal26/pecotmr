@@ -292,7 +292,8 @@ twas_pipeline <- function(twas_weights_data,
                           mr_pval_cutoff = 0.05,
                           mr_coverage_column = "cs_coverage_0.95",
                           quantile_twas = FALSE,
-                          output_twas_data = FALSE) {
+                          output_twas_data = FALSE,
+                          event_filters=NULL) {
   # internal function to format TWAS output
   format_twas_data <- function(post_qc_twas_data, twas_table) {
     weights_list <- do.call(c, lapply(names(post_qc_twas_data), function(molecular_id) {
@@ -416,6 +417,17 @@ twas_pipeline <- function(twas_weights_data,
 
   # Step 1: TWAS and MR analysis for all methods for imputable gene
   rsq_option <- match.arg(rsq_option)
+  # filter events 
+  if (!is.null(event_filters)){
+    for (weight_db in names(twas_weights_data)){
+      contexts <- names(twas_weights_data[[weight_db]]$weights)
+      filtered_events <- filter_molecular_events(contexts, event_filters, remove_all_group=TRUE)
+      for (db in names(twas_weights_data[[weight_db]])){
+         twas_weights_data[[weight_db]][[db]] <- twas_weights_data[[weight_db]][[db]][filtered_events]
+      }
+    }
+  }
+
   # harmonize twas weights and gwas sumstats against LD
   twas_data_qced_result <- harmonize_twas(twas_weights_data, ld_meta_file_path, gwas_meta_file)
   twas_results_db <- lapply(names(twas_weights_data), function(weight_db) {
