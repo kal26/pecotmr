@@ -1086,40 +1086,79 @@ archive_files <- function(params) {
   original_wd <- getwd()
   setwd(workdir)
 
-  files_to_archive <- c(
-    list.files(pattern = "parquet$", full.names = TRUE),
-    list.files(pattern = "regional\\.(fdr\\.gz|summary\\.txt)$", full.names = TRUE)
-  )
+  warn_log <- c()
+  withCallingHandlers(
+    {
+      files_to_archive <- c(
+        list.files(pattern = "parquet$", full.names = TRUE),
+        list.files(pattern = "regional\\.(fdr\\.gz|summary\\.txt)$", full.names = TRUE)
+      )
 
-  existing_files <- files_to_archive[file.exists(files_to_archive)]
-  existing_files <- unique(existing_files)
+      existing_files <- files_to_archive[file.exists(files_to_archive)]
+      existing_files <- unique(existing_files)
 
-  if (length(existing_files) > 0) {
-    # Create archive directory
-    if (!dir.exists(archive_dir)) {
-      dir.create(archive_dir, recursive = TRUE)
-      message(sprintf("Created archive directory: %s", archive_dir))
-    }
+      message(sprintf("Found %d files to archive", length(existing_files)))
+      message(sprintf("Archive directory is: %s", archive_dir))
+      
+      if (length(existing_files) > 0) {
+        # Create archive directory
+        if (!dir.exists(archive_dir)) {
+          dir.create(archive_dir, recursive = TRUE)
+          message(sprintf("Created archive directory: %s", archive_dir))
+        }
 
-    # Move files to archive
-    moved_count <- 0
-    for (file_path in existing_files) {
-      target_path <- file.path(archive_dir, basename(file_path))
-      if (file.exists(target_path)) {
-        message(sprintf("Skipping already archived file: %s", basename(file_path)))
+        # Move files to archive
+        moved_count <- 0
+        for (file_path in existing_files) {
+          target_path <- file.path(archive_dir, basename(file_path))
+          if (file.exists(target_path)) {
+            message(sprintf("Skipping already archived file: %s", basename(file_path)))
+          } else {
+
+            success <- file.rename(file_path, target_path)
+            if (success) {
+              moved_count <- moved_count + 1
+            } else {
+              message(sprintf("WARNING: Failed to move file: %s to %s", file_path, target_path))
+
+              copy_success <- file.copy(file_path, target_path)
+              if (copy_success) {
+                remove_success <- file.remove(file_path)
+                if (remove_success) {
+                  moved_count <- moved_count + 1
+                  message(sprintf("Successfully archived using copy+remove: %s", basename(file_path)))
+                } else {
+                  message(sprintf("WARNING: Copied but failed to remove original: %s", file_path))
+                }
+              } else {
+                message(sprintf("ERROR: Failed to copy: %s to %s", file_path, target_path))
+              }
+            }
+          }
+        }
+
+        message(sprintf("Archived %d/%d files", moved_count, length(existing_files)))
       } else {
-        file.rename(file_path, target_path)
-        moved_count <- moved_count + 1
+        message("No files found to archive")
       }
+    },
+    warning = function(w) {
+      warn_log <<- c(warn_log, conditionMessage(w))
+      invokeRestart("muffleWarning")
     }
-
-    message(sprintf("Archived %d/%d files", moved_count, length(existing_files)))
-  } else {
-    message("No files found to archive")
+  )
+  
+  if (length(warn_log) > 0) {
+    message("Captured warnings:")
+    for (i in seq_along(warn_log)) {
+      message(sprintf("%d: %s", i, warn_log[i]))
+    }
   }
 
   # Restore original working directory
   setwd(original_wd)
+  
+  return(invisible(warn_log))
 }
 
 # source("~/GIT/pecotmr/code/tensorqtl_postprocessor.R")
