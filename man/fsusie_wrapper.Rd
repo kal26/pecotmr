@@ -12,7 +12,7 @@ fsusie_wrapper(
   prior,
   max_SNP_EM,
   cov_lev,
-  min.purity,
+  min_purity,
   max_scale,
   ...
 )
@@ -32,7 +32,7 @@ fsusie_wrapper(
 
 \item{cov_lev}{Coverage level for the credible sets.}
 
-\item{min.purity}{Minimum purity threshold for credible sets to be retained.}
+\item{min_purity}{Minimum purity threshold for credible sets to be retained.}
 
 \item{max_scale}{numeric, define the maximum of wavelet coefficients used in the analysis (2^max_scale).
 Set 10 true by default.}
