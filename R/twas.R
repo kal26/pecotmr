@@ -486,6 +486,9 @@ twas_pipeline <- function(twas_weights_data,
           twas_data_qced[[weight_db]][["weights_qced"]][[context]][[study]][["weights"]], twas_data_qced[[weight_db]][["gwas_qced"]][[study]],
           twas_data_qced[[weight_db]][["LD"]], twas_variants
         )
+        if (is.null(twas_rs)) {
+          return(list(twas_rs_df = data.frame(), mr_rs_df = data.frame()))
+        }             
         twas_rs_df <- data.frame(
           gwas_study = study, method = sub("_[^_]+$", "", names(twas_rs)), twas_z = find_data(twas_rs, c(2, "z")),
           twas_pval = find_data(twas_rs, c(2, "pval")), context = context, molecular_id = weight_db
@@ -545,17 +548,32 @@ twas_pipeline <- function(twas_weights_data,
     gene_table <- do.call(rbind, lapply(contexts, function(context) {
       methods <- sub("_[^_]+$", "", names(twas_weights_data[[molecular_id]]$twas_cv_performance[[context]]))
       if (quantile_twas) {
-        # Quantile TWAS data extraction
-        quantile_starts <- sapply(twas_weights_data[[molecular_id]]$twas_cv_performance[[context]], function(x) x[, "quantile_start"])
-        quantile_ends <- sapply(twas_weights_data[[molecular_id]]$twas_cv_performance[[context]], function(x) x[, "quantile_end"])
-        pseudo_R2_avgs <- sapply(twas_weights_data[[molecular_id]]$twas_cv_performance[[context]], function(x) x[, "pseudo_R2_avg"])
-
-        context_table <- data.frame(
-          context = context, method = methods,
-          quantile_start = quantile_starts, quantile_end = quantile_ends,
-          pseudo_R2_avg = pseudo_R2_avgs,
-          type = twas_weights_data[[molecular_id]][["data_type"]][[context]]
-        )
+        cv_performance <- twas_weights_data[[molecular_id]]$twas_cv_performance[[context]]
+        if (length(methods) == 0) {
+          context_table <- data.frame()
+        } else {
+          method_results <- list()
+          
+          for (method in methods) {
+            if (!is.null(cv_performance[[paste0(method, "_performance")]])) {
+              performance_data <- cv_performance[[paste0(method, "_performance")]]
+              method_results[[method]] <- data.frame(
+                context = context,
+                method = method,
+                quantile_start = performance_data[, "quantile_start"],
+                quantile_end = performance_data[, "quantile_end"],
+                pseudo_R2_avg = performance_data[, "pseudo_R2_avg"],
+                type = twas_weights_data[[molecular_id]][["data_type"]][[context]]
+              )
+            }
+          }
+          
+          if (length(method_results) > 0) {
+            context_table <- do.call(rbind, method_results)
+          } else {
+            context_table <- data.frame()
+          }
+        }
       } else {
         # Original TWAS data extraction
         is_imputable <- twas_data[[molecular_id]][["model_selection"]][[context]]$is_imputable
@@ -588,6 +606,9 @@ twas_pipeline <- function(twas_weights_data,
   } else {
     c("chr", "molecular_id", "context", "gwas_study", "method", "is_imputable", "is_selected_method", "rsq_cv", "pval_cv", "twas_z", "twas_pval", "type", "block")
   }
+  if (nrow(twas_results_table) == 0) {
+    return(list(twas_result = NULL, twas_data = NULL, mr_result = NULL))
+  }    
   twas_table <- merge(twas_table, twas_results_table, by = c("molecular_id", "context", "method"))
   if (!quantile_twas) {
     twas_table <- twas_table[twas_table$is_imputable, , drop = FALSE]
