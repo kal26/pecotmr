@@ -118,7 +118,7 @@ fsusie_get_cs <- function(fSuSiE.obj, X, requested_coverage = 0.95) {
 #'         and without the dummy cs that do not meet the minimum purity requirement.
 #' @export
 
-fsusie_wrapper <- function(X, Y, pos, L, prior, max_SNP_EM, cov_lev, min.purity, max_scale, ...) {
+fsusie_wrapper <- function(X, Y, pos, L, prior, max_SNP_EM, cov_lev, min_purity, max_scale, ...) {
   # Make sure fsusieR installed
   if (!requireNamespace("fsusieR", quietly = TRUE)) {
     stop("To use this function, please install fsusieR: https://github.com/stephenslab/fsusieR")
@@ -127,11 +127,11 @@ fsusie_wrapper <- function(X, Y, pos, L, prior, max_SNP_EM, cov_lev, min.purity,
   fSuSiE.obj <- fsusieR::susiF(
     X = X, Y = Y, pos = pos, L = L, prior = prior,
     max_SNP_EM = max_SNP_EM, cov_lev = cov_lev,
-    min.purity = min.purity, max_scale = max_scale, ...
+    min_purity = min_purity, max_scale = max_scale, ...
   )
 
   # Remove dummy cs based on purity threshold
-  if (all(abs(as.numeric(fSuSiE.obj$purity)) < min.purity)) {
+  if (all(abs(as.numeric(fSuSiE.obj$purity)) < min_purity)) {
     fSuSiE.obj$cs <- list(NULL)
     fSuSiE.obj$sets <- list(cs = list(NULL), requested_coverage = cov_lev)
     fSuSiE.obj$cs_corr <- NULL # Set cs correlations to NULL if no credible sets meet purity criteria
