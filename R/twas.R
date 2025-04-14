@@ -422,8 +422,12 @@ twas_pipeline <- function(twas_weights_data,
     for (weight_db in names(twas_weights_data)){
       contexts <- names(twas_weights_data[[weight_db]]$weights)
       filtered_events <- filter_molecular_events(contexts, event_filters, remove_all_group=TRUE)
-      for (db in names(twas_weights_data[[weight_db]])){
-         twas_weights_data[[weight_db]][[db]] <- twas_weights_data[[weight_db]][[db]][filtered_events]
+      if (length(filtered_events!=0)){
+          for (db in names(twas_weights_data[[weight_db]])){
+             twas_weights_data[[weight_db]][[db]] <- twas_weights_data[[weight_db]][[db]][filtered_events]
+          }   
+      } else {
+          twas_weights_data[[weight_db]] <- NULL
       }
     }
   }
