@@ -49,11 +49,11 @@ find_intersection_rows <- function(genomic_data, region_chrom, region_start, reg
 
   # Try to find rows that cover the region start and end
   start_row <- genomic_data %>%
-    filter(chrom == region_chrom, start <= region_start, end >= region_start) %>%
+    filter(chrom == region_chrom, start <= region_start, end > region_start) %>%
     slice(1)
 
   end_row <- genomic_data %>%
-    filter(chrom == region_chrom, start <= region_end, end >= region_end) %>%
+    filter(chrom == region_chrom, start < region_end, end >= region_end) %>%
     arrange(desc(end)) %>%
     slice(1)
 
@@ -366,8 +366,24 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     block_id = seq_along(LD_file_paths),
     chrom = block_chroms,
     size = sapply(block_variants, length),
-    start_idx = sapply(block_variants, function(v) min(match(v, combined_LD_variants))),
-    end_idx = sapply(block_variants, function(v) max(match(v, combined_LD_variants))),
+    start_idx = sapply(block_variants, function(v) {
+      matches <- match(v, combined_LD_variants)
+      valid_matches <- matches[is.finite(matches) & !is.na(matches)]
+      if(length(valid_matches) > 0) {
+        return(min(valid_matches))
+      } else {
+        return(NA)
+      }
+    }),
+    end_idx = sapply(block_variants, function(v) {
+      matches <- match(v, combined_LD_variants)
+      valid_matches <- matches[is.finite(matches) & !is.na(matches)]
+      if(length(valid_matches) > 0) {
+        return(max(valid_matches))
+      } else {
+        return(NA)
+      }
+    }),
     stringsAsFactors = FALSE
   )
 
