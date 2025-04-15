@@ -366,24 +366,8 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     block_id = seq_along(LD_file_paths),
     chrom = block_chroms,
     size = sapply(block_variants, length),
-    start_idx = sapply(block_variants, function(v) {
-      matches <- match(v, combined_LD_variants)
-      valid_matches <- matches[is.finite(matches) & !is.na(matches)]
-      if(length(valid_matches) > 0) {
-        return(min(valid_matches))
-      } else {
-        return(NA)
-      }
-    }),
-    end_idx = sapply(block_variants, function(v) {
-      matches <- match(v, combined_LD_variants)
-      valid_matches <- matches[is.finite(matches) & !is.na(matches)]
-      if(length(valid_matches) > 0) {
-        return(max(valid_matches))
-      } else {
-        return(NA)
-      }
-    }),
+    start_idx = sapply(block_variants, function(v) min(match(v, combined_LD_variants))),
+    end_idx = sapply(block_variants, function(v) max(match(v, combined_LD_variants))),
     stringsAsFactors = FALSE
   )
 
