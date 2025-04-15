@@ -431,6 +431,9 @@ twas_pipeline <- function(twas_weights_data,
       }
     }
   }
+  if (length(twas_weights_data)==0) {
+    return(NULL)
+  }
 
   # harmonize twas weights and gwas sumstats against LD
   twas_data_qced_result <- harmonize_twas(twas_weights_data, ld_meta_file_path, gwas_meta_file)
