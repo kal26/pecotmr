@@ -49,11 +49,11 @@ find_intersection_rows <- function(genomic_data, region_chrom, region_start, reg
 
   # Try to find rows that cover the region start and end
   start_row <- genomic_data %>%
-    filter(chrom == region_chrom, start <= region_start, end >= region_start) %>%
+    filter(chrom == region_chrom, start <= region_start, end > region_start) %>%
     slice(1)
 
   end_row <- genomic_data %>%
-    filter(chrom == region_chrom, start <= region_end, end >= region_end) %>%
+    filter(chrom == region_chrom, start < region_end, end >= region_end) %>%
     arrange(desc(end)) %>%
     slice(1)
 
