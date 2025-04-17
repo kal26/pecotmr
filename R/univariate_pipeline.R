@@ -262,7 +262,7 @@ rss_analysis_pipeline <- function(
   result_list[[method_name]] <- res
   result_list[["rss_data_analyzed"]] <- sumstats
   
-
+  block_cs_metrics <- list()
   if (diagnostics) {
     if (length(res) > 0) { 
         bvsr_res = get_susie_result(res)
@@ -363,6 +363,6 @@ rss_analysis_pipeline <- function(
       }
       result_list[[method_name]] <- ser
     } 
-  return(result_list)
+  return(result_list = result_list, block_cs_metrics = block_cs_metrics)
   }
 }
