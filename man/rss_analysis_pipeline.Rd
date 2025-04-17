@@ -23,7 +23,8 @@ rss_analysis_pipeline(
   impute_opts = list(rcond = 0.01, R2_threshold = 0.6, minimum_ld = 5, lamb = 0.01),
   pip_cutoff_to_skip = 0,
   remove_indels = FALSE,
-  comment_string = "#"
+  comment_string = "#",
+  diagnostics = FALSE
 )
 }
 \arguments{
