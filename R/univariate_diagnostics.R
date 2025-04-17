@@ -20,7 +20,7 @@
 #' where not all method layers may contain valid SuSiE results or method layer.
 #'
 #' @export
-get_res <- function(con_data) {
+get_susie_result <- function(con_data) {
     if (length(con_data) == 0) return(NULL)
     if (length(con_data$susie_result_trimmed) == 0) {
         return(NULL)
@@ -61,7 +61,7 @@ get_res <- function(con_data) {
 #' @importFrom tibble z_to_pvalue
 #'
 #' @export
-process_cs <- function(con_data, cs_names, top_loci_table) {  
+extract_cs_info <- function(con_data, cs_names, top_loci_table) {  
   results <- map(seq_along(cs_names), function(i) {
     cs_name <- cs_names[i]
     indices <- con_data$susie_result_trimmed$sets$cs[[cs_name]]
@@ -131,13 +131,13 @@ process_cs <- function(con_data, cs_names, top_loci_table) {
 #' This function is particularly useful for capturing information about potentially 
 #' important variants that might be included in Credible Sets under different 
 #' analysis parameters or lower coverage. It maintains a structure similar to 
-#' the output of `process_cs()` for consistency in downstream analyses.
+#' the output of `extract_cs_info()` for consistency in downstream analyses.
 #'
 #' @seealso 
-#' \code{\link{process_cs}} for processing when Credible Sets are present.
+#' \code{\link{extract_cs_info}} for processing when Credible Sets are present.
 #'
 #' @export
-extract_top_pip <- function(con_data) {
+extract_top_pip_info <- function(con_data) {
   # Find the variant with the highest PIP
   top_pip_index <- which.max(con_data$susie_result_trimmed$pip)
   top_pip <- con_data$susie_result_trimmed$pip[top_pip_index]
@@ -157,13 +157,13 @@ extract_top_pip <- function(con_data) {
   )
 }
 
-#' Parse Credible Set Correlations from process_cs() Output
+#' Parse Credible Set Correlations from extract_cs_info() Output
 #'
-#' This function takes the output from `process_cs()` and expands the `cs_corr` column
+#' This function takes the output from `extract_cs_info()` and expands the `cs_corr` column
 #' into multiple columns, preserving the original order of correlations. It also
 #' calculates maximum and minimum correlation values for each Credible Set.
 #'
-#' @param df Data frame or data.table. The output from `process_cs()` function,
+#' @param df Data frame or data.table. The output from `extract_cs_info()` function,
 #'           containing a `cs_corr` column with correlation information.
 #'
 #' @return A data.table with the original columns from the input, plus:
