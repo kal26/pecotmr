@@ -47,8 +47,8 @@ get_susie_result <- function(con_data) {
 #'   \item{top_pip}{Highest Posterior Inclusion Probability (PIP) in the CS}
 #'   \item{top_z}{Z-score of the top variant}
 #'   \item{p_value}{P-value calculated from the top Z-score}
-#'   \item{cs_corr}{pairwise correlations of other CSs in this RDS with the CS of 
-#`    the current row, delimited by `|`, if there are more than one CSs in this RDS file}
+#'   \item{cs_corr}{Pairwise correlations of other CSs in this RDS with the CS of 
+#'     the current row, delimited by '|', if there is more than one CS in this RDS file}
 #'
 #' @details
 #' This function is designed to be used only when there is at least one Credible Set 
@@ -58,7 +58,6 @@ get_susie_result <- function(con_data) {
 #'
 #' @importFrom purrr map
 #' @importFrom dplyr bind_rows
-#' @importFrom tibble z_to_pvalue
 #'
 #' @export
 extract_cs_info <- function(con_data, cs_names, top_loci_table) {  
