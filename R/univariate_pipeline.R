@@ -274,11 +274,11 @@ rss_analysis_pipeline <- function(
         if (isTRUE(bvsr_cs_num > 0)) { # have CS
             # Get the names of the credible sets
             cs_names_bvsr = names(bvsr_res$sets$cs)
-            block_cs_metrics = process_cs(data = res, cs_names = cs_names_bvsr, top_loci_table = res$top_loci)
+            block_cs_metrics = extract_cs_info(data = res, cs_names = cs_names_bvsr, top_loci_table = res$top_loci)
         } else { # no CS
             bvsr_res = get_susie_result(res)
             if (sum(bvsr_res$pip > finemapping_opts$signal_cutoff) > 0) {
-                block_cs_metrics = extract_top_pip(res)
+                block_cs_metrics = extract_top_pip_info(res)
             }
         }
     }
@@ -286,6 +286,9 @@ rss_analysis_pipeline <- function(
     print(block_cs_metrics)
     # sensitive check for additional analyses
     if (!is.null(block_cs_metrics) && length(block_cs_metrics) > 0) {
+      block_cs_metrics = parse_cs_corr(block_cs_metrics)
+      print("block_cs_metrics")
+      print(str(block_cs_metrics))
       if (block_cs_metrics$variants_per_cs > 1) {
         block_cs_metrics <- block_cs_metrics %>%
           group_by(study, block) %>%
