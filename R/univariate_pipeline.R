@@ -274,7 +274,7 @@ rss_analysis_pipeline <- function(
         if (isTRUE(bvsr_cs_num > 0)) { # have CS
             # Get the names of the credible sets
             cs_names_bvsr = names(bvsr_res$sets$cs)
-            block_cs_metrics = extract_cs_info(data = res, cs_names = cs_names_bvsr, top_loci_table = res$top_loci)
+            block_cs_metrics = extract_cs_info(con_data = res, cs_names = cs_names_bvsr, top_loci_table = res$top_loci)
         } else { # no CS
             bvsr_res = get_susie_result(res)
             if (sum(bvsr_res$pip > finemapping_opts$signal_cutoff) > 0) {
@@ -285,7 +285,8 @@ rss_analysis_pipeline <- function(
     print("block_cs_metrics")
     print(block_cs_metrics)
     # sensitive check for additional analyses
-    if (!is.null(block_cs_metrics) && length(block_cs_metrics) > 0) {
+    if (!is.null(block_cs_metrics) && nrow(block_cs_metrics) > 0) {
+      print("pass")
       block_cs_metrics = parse_cs_corr(block_cs_metrics)
       print("block_cs_metrics")
       print(str(block_cs_metrics))

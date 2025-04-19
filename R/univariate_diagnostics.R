@@ -190,7 +190,6 @@ parse_cs_corr <- function(df) {
   if (!is.data.table(df)) {
     setDT(df)
   }
-  
   # Function to extract correlations
   extract_correlations <- function(x) {
     if(is.na(x) || x == "" || !grepl("\\|", x)) {
@@ -210,13 +209,17 @@ parse_cs_corr <- function(df) {
       min_corr = min(abs(values_filtered), na.rm = TRUE)
     ))
   }
-  
+  print("df$cs_corr")
+  print(df$cs_corr)
+  str(df$cs_corr)
   # Process correlations
   processed_results <- lapply(df$cs_corr, extract_correlations)
-  
+  print("processed_results")
+  print(processed_results)
   # Determine max number of correlations
   max_corr_count <- max(sapply(processed_results, function(x) length(x$values)))
-  
+  print("max_corr_count")
+  print(max_corr_count)
   # Create column names
   col_names <- paste0("cs_corr_", 1:max_corr_count)
   
@@ -226,7 +229,8 @@ parse_cs_corr <- function(df) {
       if(length(x$values) >= j) x$values[j] else NA_real_
     })
   })
-  
+  print("corr_list")
+  print(corr_list)
   # Add columns to the data.table
   for(i in seq_along(col_names)) {
     df[, (col_names[i]) := corr_list[[i]]]
