@@ -190,18 +190,26 @@ parse_cs_corr <- function(df) {
   if (!is.data.table(df)) {
     setDT(df)
   }
-  # Function to extract correlations
+  print("df")
+  print(df)
   extract_correlations <- function(x) {
+    # Explicit conversion to character (main change)
+    x <- as.character(x)
+    
+    # Same NA and empty string check
     if(is.na(x) || x == "" || !grepl("\\|", x)) {
       return(list(values = numeric(0), max_corr = NA, min_corr = NA))
     }
     
-    values <- as.numeric(unlist(strsplit(as.character(x), "\\|")))
+    # Conversion to numeric, similar to original
+    values <- as.numeric(unlist(strsplit(x, "\\|")))
     
-    
+    # Same length check
     if(length(values) == 0) {
       return(list(values = numeric(0), max_corr = NA, min_corr = NA))
     }
+    
+    # Same filtering and calculation
     values_filtered <- abs(values[values != 1])
     return(list(
       values = values,
@@ -211,7 +219,6 @@ parse_cs_corr <- function(df) {
   }
   print("df$cs_corr")
   print(df$cs_corr)
-  str(df$cs_corr)
   # Process correlations
   processed_results <- lapply(df$cs_corr, extract_correlations)
   print("processed_results")
