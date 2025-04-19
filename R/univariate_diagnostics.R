@@ -93,7 +93,7 @@ extract_cs_info <- function(con_data, cs_names, top_loci_table) {
       top_pip = top_pip,
       top_z = top_z,
       p_value = p_value,
-      cs_corr = list(cs_corr)  # list column if cs_corr is a vector
+      cs_corr = list(paste(cs_corr, collapse = ","))  # list column if cs_corr is a vector
     )
     return(result)
   })
@@ -190,19 +190,17 @@ parse_cs_corr <- function(df) {
   if (!is.data.table(df)) {
     setDT(df)
   }
-  print("df")
-  print(df)
   extract_correlations <- function(x) {
-    # Explicit conversion to character (main change)
-    x <- as.character(x)
+    # # Explicit conversion to character (main change)
+    # x <- as.character(x)
     
     # Same NA and empty string check
-    if(is.na(x) || x == "" || !grepl("\\|", x)) {
+    if(is.na(x) || x == "" || !grepl(",", x)) {
       return(list(values = numeric(0), max_corr = NA, min_corr = NA))
     }
     
     # Conversion to numeric, similar to original
-    values <- as.numeric(unlist(strsplit(x, "\\|")))
+    values <- as.numeric(unlist(strsplit(x, ",")))
     
     # Same length check
     if(length(values) == 0) {
@@ -225,8 +223,6 @@ parse_cs_corr <- function(df) {
   print(processed_results)
   # Determine max number of correlations
   max_corr_count <- max(sapply(processed_results, function(x) length(x$values)))
-  print("max_corr_count")
-  print(max_corr_count)
   # Create column names
   col_names <- paste0("cs_corr_", 1:max_corr_count)
   

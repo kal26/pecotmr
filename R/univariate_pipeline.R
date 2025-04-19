@@ -290,16 +290,14 @@ rss_analysis_pipeline <- function(
       block_cs_metrics = parse_cs_corr(block_cs_metrics)
       print("block_cs_metrics")
       print(str(block_cs_metrics))
-      if (block_cs_metrics$variants_per_cs > 1) {
+      if (nrow(block_cs_metrics)) {
         block_cs_metrics <- block_cs_metrics %>%
-          group_by(study, block) %>%
           mutate(max_cs_corr_study_block = if(all(is.na(cs_corr_max))) {
-            NA_real_  # Use NA instead of -Inf when all values are NA
+            NA_real_
           } else {
             max(cs_corr_max, na.rm = TRUE)
-          }) %>%
-          ungroup()
-        if (block_cs_metrics$p_value > 1e-4 | block_cs_metrics$max_cs_corr_study_block > 0.5) {
+          })
+        if (any(block_cs_metrics$p_value > 1e-4 | block_cs_metrics$max_cs_corr_study_block > 0.5)) {
           finemapping_method <- "bayesian_conditional_regression"
           pri_coverage <- finemapping_opts$coverage[1]
           sec_coverage <- if (length(finemapping_opts$coverage) > 1) finemapping_opts$coverage[-1] else NULL
@@ -345,7 +343,7 @@ rss_analysis_pipeline <- function(
           }
           result_list[[method_name]] <- ser
         }
-      } else { # variants_per_cs > 1 or NA
+      } else { # CS = 1 or NA
         finemapping_method <- "single_effect"
         sumstats <- preprocess_results$sumstats
         LD_mat <- preprocess_results$LD_mat
