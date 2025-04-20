@@ -290,13 +290,16 @@ rss_analysis_pipeline <- function(
       block_cs_metrics = parse_cs_corr(block_cs_metrics)
       print("block_cs_metrics")
       print(str(block_cs_metrics))
-      if (nrow(block_cs_metrics)) {
+      cs_row = block_cs_metrics %>% filter(!is.na(block_cs_metrics$variants_per_cs))
+      if (nrow(cs_row)>1) {# CS > 1
         block_cs_metrics <- block_cs_metrics %>%
           mutate(max_cs_corr_study_block = if(all(is.na(cs_corr_max))) {
             NA_real_
           } else {
             max(cs_corr_max, na.rm = TRUE)
           })
+        print("block_cs_metrics")
+        print(str(block_cs_metrics))
         if (any(block_cs_metrics$p_value > 1e-4 | block_cs_metrics$max_cs_corr_study_block > 0.5)) {
           finemapping_method <- "bayesian_conditional_regression"
           pri_coverage <- finemapping_opts$coverage[1]
