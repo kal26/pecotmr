@@ -208,12 +208,8 @@ parse_cs_corr <- function(df) {
       min_corr = if(length(values_filtered) > 0) min(abs(values_filtered), na.rm = TRUE) else NA_real_
     )
   }
-  print("df$cs_corr")
-  print(df$cs_corr)
   # Process correlations
   processed_results <- lapply(df$cs_corr, extract_correlations)
-  print("processed_results")
-  print(processed_results)
   # If no valid results, add NA columns and return
   if(all(sapply(processed_results, function(x) length(x$values) == 0))) {
     df[, c("cs_corr_max", "cs_corr_min") := list(NA_real_, NA_real_)]

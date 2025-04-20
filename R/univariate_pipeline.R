@@ -237,8 +237,6 @@ rss_analysis_pipeline <- function(
 
   # Perform fine-mapping
   if (!is.null(finemapping_method)) {
-    print("finemapping_method")
-    print(finemapping_method)
     pri_coverage <- finemapping_opts$coverage[1]
     sec_coverage <- if (length(finemapping_opts$coverage) > 1) finemapping_opts$coverage[-1] else NULL
     res <- susie_rss_pipeline(sumstats, LD_mat,
@@ -249,8 +247,6 @@ rss_analysis_pipeline <- function(
       secondary_coverage = sec_coverage,
       signal_cutoff = finemapping_opts$signal_cutoff
     )
-    print("str(res)")
-    print(str(res))
     if (!is.null(qc_method)) {
       res$outlier_number <- qc_results$outlier_number
     }
@@ -282,14 +278,9 @@ rss_analysis_pipeline <- function(
             }
         }
     }
-    print("block_cs_metrics")
-    print(block_cs_metrics)
     # sensitive check for additional analyses
     if (!is.null(block_cs_metrics) && nrow(block_cs_metrics) > 0) {
-      print("pass")
       block_cs_metrics = parse_cs_corr(block_cs_metrics)
-      print("block_cs_metrics")
-      print(str(block_cs_metrics))
       cs_row = block_cs_metrics %>% filter(!is.na(block_cs_metrics$variants_per_cs))
       if (nrow(cs_row)>1) {# CS > 1
         block_cs_metrics <- block_cs_metrics %>%
@@ -298,8 +289,6 @@ rss_analysis_pipeline <- function(
           } else {
             max(cs_corr_max, na.rm = TRUE)
           })
-        print("block_cs_metrics")
-        print(str(block_cs_metrics))
         if (any(block_cs_metrics$p_value > 1e-4 | block_cs_metrics$max_cs_corr_study_block > 0.5)) {
           finemapping_method <- "bayesian_conditional_regression"
           pri_coverage <- finemapping_opts$coverage[1]
