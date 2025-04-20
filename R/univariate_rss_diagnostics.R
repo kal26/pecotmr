@@ -270,7 +270,6 @@ parse_cs_corr <- function(df) {
 #' @importFrom dplyr case_when
 #'
 #' @export
-# cs_exp = cs_exp |> filter(!is.na(p_value))
 auto_decision <- function(df, high_corr_cols) {
   # Identify top_cs
   top_cs_index <- which.max(abs(df$top_z))
