@@ -145,14 +145,14 @@ extract_top_pip_info <- function(con_data) {
   p_value = z_to_pvalue(top_z)
   # Create the dataframe row
   data.frame(
-    cs_name = NA_character_,
-    variants_per_cs = NA_integer_,
+    cs_name = NA,
+    variants_per_cs = NA,
     top_variant = top_variant,
     top_variant_index = top_pip_index,
     top_pip = top_pip,
     top_z = top_z,
     p_value = p_value,
-    cs_corr = NA_character_
+    cs_corr = list()
   )
 }
 
@@ -190,30 +190,23 @@ parse_cs_corr <- function(df) {
   if (!is.data.table(df)) {
     setDT(df)
   }
+  
   extract_correlations <- function(x) {
-    # # Explicit conversion to character (main change)
-    # x <- as.character(x)
-    
-    # Same NA and empty string check
-    if(is.na(x) || x == "" || !grepl(",", x)) {
-      return(list(values = numeric(0), max_corr = NA, min_corr = NA))
+    # Early return if x is invalid
+    if(is.na(x) || x == "" || is.null(x) || !grepl(",", as.character(x))) {
+      return(list(values = numeric(0), max_corr = NA_real_, min_corr = NA_real_))
     }
     
-    # Conversion to numeric, similar to original
+    # Convert and filter values
     values <- as.numeric(unlist(strsplit(x, ",")))
-    
-    # Same length check
-    if(length(values) == 0) {
-      return(list(values = numeric(0), max_corr = NA, min_corr = NA))
-    }
-    
-    # Same filtering and calculation
     values_filtered <- abs(values[values != 1])
-    return(list(
+    
+    # Return list with NA if no valid correlations
+    list(
       values = values,
-      max_corr = max(abs(values_filtered), na.rm = TRUE),
-      min_corr = min(abs(values_filtered), na.rm = TRUE)
-    ))
+      max_corr = if(length(values_filtered) > 0) max(abs(values_filtered), na.rm = TRUE) else NA_real_,
+      min_corr = if(length(values_filtered) > 0) min(abs(values_filtered), na.rm = TRUE) else NA_real_
+    )
   }
   print("df$cs_corr")
   print(df$cs_corr)
@@ -221,27 +214,29 @@ parse_cs_corr <- function(df) {
   processed_results <- lapply(df$cs_corr, extract_correlations)
   print("processed_results")
   print(processed_results)
-  # Determine max number of correlations
-  max_corr_count <- max(sapply(processed_results, function(x) length(x$values)))
-  # Create column names
-  col_names <- paste0("cs_corr_", 1:max_corr_count)
-  
-  # Prepare a list of correlation values for each column
-  corr_list <- lapply(1:max_corr_count, function(j) {
-    sapply(processed_results, function(x) {
-      if(length(x$values) >= j) x$values[j] else NA_real_
-    })
-  })
-  print("corr_list")
-  print(corr_list)
-  # Add columns to the data.table
-  for(i in seq_along(col_names)) {
-    df[, (col_names[i]) := corr_list[[i]]]
+  # If no valid results, add NA columns and return
+  if(all(sapply(processed_results, function(x) length(x$values) == 0))) {
+    df[, c("cs_corr_max", "cs_corr_min") := list(NA_real_, NA_real_)]
+    return(df)
   }
   
-  # Add max and min columns
-  df[, cs_corr_max := sapply(processed_results, `[[`, "max_corr")]
-  df[, cs_corr_min := sapply(processed_results, `[[`, "min_corr")]
+  # Determine max number of correlations
+  max_corr_count <- max(sapply(processed_results, function(x) length(x$values)))
+  
+  # Create and add correlation columns
+  col_names <- paste0("cs_corr_", 1:max_corr_count)
+  
+  for(i in seq_along(col_names)) {
+    df[, (col_names[i]) := sapply(processed_results, function(x) {
+      if(length(x$values) >= i) x$values[i] else NA_real_
+    })]
+  }
+  
+  # Add max and min correlation columns
+  df[, `:=`(
+    cs_corr_max = sapply(processed_results, `[[`, "max_corr"),
+    cs_corr_min = sapply(processed_results, `[[`, "min_corr")
+  )]
   
   return(df)
 }
