@@ -234,6 +234,7 @@ rss_analysis_pipeline <- function(
     sumstats <- impute_results$result_filter
     LD_mat <- impute_results$LD_mat
   }
+
   # Perform fine-mapping
   if (!is.null(finemapping_method)) {
     pri_coverage <- finemapping_opts$coverage[1]
