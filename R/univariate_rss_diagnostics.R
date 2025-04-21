@@ -137,14 +137,13 @@ extract_cs_info <- function(con_data, cs_names, top_loci_table) {
 #'
 #' @export
 extract_top_pip_info <- function(con_data) {
-  # Find the variant with the highest PIP
   top_pip_index <- which.max(con_data$susie_result_trimmed$pip)
   top_pip <- con_data$susie_result_trimmed$pip[top_pip_index]
-  top_variant = con_data$variant_names[top_pip_index]
-  top_z = con_data$sumstats$z[top_pip_index]
-  p_value = z_to_pvalue(top_z)
-  # Create the dataframe row
-  data.frame(
+  top_variant <- con_data$variant_names[top_pip_index]
+  top_z <- con_data$sumstats$z[top_pip_index]
+  p_value <- z_to_pvalue(top_z)
+  
+  list(
     cs_name = NA,
     variants_per_cs = NA,
     top_variant = top_variant,
@@ -152,9 +151,10 @@ extract_top_pip_info <- function(con_data) {
     top_pip = top_pip,
     top_z = top_z,
     p_value = p_value,
-    cs_corr = list()
+    cs_corr = NA  # or NULL or an empty list if that makes more sense
   )
 }
+
 
 #' Parse Credible Set Correlations from extract_cs_info() Output
 #'
@@ -215,7 +215,6 @@ parse_cs_corr <- function(df) {
     df[, c("cs_corr_max", "cs_corr_min") := list(NA_real_, NA_real_)]
     return(df)
   }
-  
   # Determine max number of correlations
   max_corr_count <- max(sapply(processed_results, function(x) length(x$values)))
   

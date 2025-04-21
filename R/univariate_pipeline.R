@@ -234,7 +234,6 @@ rss_analysis_pipeline <- function(
     sumstats <- impute_results$result_filter
     LD_mat <- impute_results$LD_mat
   }
-
   # Perform fine-mapping
   if (!is.null(finemapping_method)) {
     pri_coverage <- finemapping_opts$coverage[1]
@@ -272,14 +271,13 @@ rss_analysis_pipeline <- function(
             cs_names_bvsr = names(bvsr_res$sets$cs)
             block_cs_metrics = extract_cs_info(con_data = res, cs_names = cs_names_bvsr, top_loci_table = res$top_loci)
         } else { # no CS
-            bvsr_res = get_susie_result(res)
             if (sum(bvsr_res$pip > finemapping_opts$signal_cutoff) > 0) {
                 block_cs_metrics = extract_top_pip_info(res)
             }
         }
     }
     # sensitive check for additional analyses
-    if (!is.null(block_cs_metrics) && nrow(block_cs_metrics) > 0) {
+    if (!is.null(block_cs_metrics) && length(block_cs_metrics) > 0) {
       block_cs_metrics = parse_cs_corr(block_cs_metrics)
       cs_row = block_cs_metrics %>% filter(!is.na(block_cs_metrics$variants_per_cs))
       if (nrow(cs_row)>1) {# CS > 1
