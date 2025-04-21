@@ -8,11 +8,10 @@
 #' @param return_residuals Logical, whether to return residuals (default: FALSE).
 #' @return A list containing regression results: \code{betahat}, \code{sebetahat}, \code{z_scores}, \code{p_values}, and \code{q_values}.
 #' @examples
-#' @noRd
 #' X <- matrix(rnorm(1000), 100, 10)
 #' y <- rnorm(100)
 #' results <- univariate_regression(X, y)
-
+#' @noRd
 univariate_regression <- function(X, y, Z = NULL, center = TRUE,
                                   scale = FALSE, return_residuals = FALSE) {
   y_na <- which(is.na(y))
@@ -96,10 +95,10 @@ univariate_regression <- function(X, y, Z = NULL, center = TRUE,
 #' @param covariates Optional numeric matrix of covariates (n x k), where k is the number of covariates.
 #' @return A data frame containing regression results for each SNP, including \code{BETA}, \code{SE}, \code{Z}, \code{P}, and \code{Q}.
 #' @examples
-#' @noRd
 #' genotype <- matrix(rbinom(1000 * 10, 2, 0.3), 1000, 10)
 #' phenotype <- rnorm(1000)
 #' results <- run_linear_regression1(genotype, phenotype)
+#' @noRd
 run_linear_regression <- function(genotype, phenotype, covariates = NULL) {
   if (!is.null(covariates)) {
     covariates <- as.data.frame(lapply(covariates, as.numeric))

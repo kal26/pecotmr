@@ -489,6 +489,11 @@ load_regional_association_data <- function(genotype, # PLINK file
   ))
 }
 
+#' Load Regional Univariate Association Data
+#'
+#' This function loads regional association data for univariate analysis.
+#' It includes residual matrices, original genotype data, and additional metadata.
+#'
 #' @importFrom matrixStats colVars
 #' @return A list
 #' @export
@@ -508,6 +513,11 @@ load_regional_univariate_data <- function(...) {
   ))
 }
 
+#' Load Regional Data for Regression Modeling
+#'
+#' This function loads regional association data formatted for regression modeling.
+#' It includes phenotype, genotype, and covariate matrices along with metadata.
+#'
 #' @return A list
 #' @export
 load_regional_regression_data <- function(...) {
@@ -543,6 +553,11 @@ pheno_list_to_mat <- function(data_list) {
   return(data_list)
 }
 
+#' Load and Preprocess Regional Multivariate Data
+#'
+#' This function loads regional association data and processes it into a multivariate format.
+#' It optionally filters out samples based on missingness thresholds in the response matrix.
+#'
 #' @importFrom matrixStats colVars
 #' @return A list
 #' @export
@@ -578,6 +593,10 @@ load_regional_multivariate_data <- function(matrix_y_min_complete = NULL, # when
   ))
 }
 
+#' Load Regional Functional Association Data
+#'
+#' This function loads precomputed regional functional association data.
+#'
 #' @return A list
 #' @export
 load_regional_functional_data <- function(...) {
