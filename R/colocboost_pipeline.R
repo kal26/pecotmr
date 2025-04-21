@@ -197,7 +197,7 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
 #' This function perform a multi-trait colocalization using ColocBoost
 #'
 #' @param region_data A region data loaded from \code{load_regional_data}.
-#' @param target_trait Name of trait if perform targeted ColocBoost
+#' @param focal_trait Name of trait if perform focaled ColocBoost
 #' @param event_filters A list of pattern for filtering events based on context names. Example: for sQTL, list(type_pattern = ".*clu_(\\d+_[+-?]).*",valid_pattern = "clu_(\\d+_[+-?]):PR:",exclude_pattern = "clu_(\\d+_[+-?]):IN:")
 #' @param maf_cutoff A scalar to remove variants with maf < maf_cutoff, dafault is 0.005.
 #' @param pip_cutoff_to_skip_ind A vector of cutoff values for skipping analysis based on PIP values for each context. Default is 0.
@@ -221,7 +221,7 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
 #'
 #' @export
 colocboost_analysis_pipeline <- function(region_data,
-                                         target_trait = NULL,
+                                         focal_trait = NULL,
                                          event_filters = NULL,
                                          # - analysis
                                          xqtl_coloc = TRUE,
@@ -462,47 +462,47 @@ colocboost_analysis_pipeline <- function(region_data,
     message(paste("====== Performing xQTL-only ColocBoost on", length(Y), "contexts. ====="))
     t11 <- Sys.time()
     traits <- names(Y)
-    target_idx <- NULL
-    if (!is.null(target_trait)) {
-      if (target_trait %in% traits) {
-        target_idx <- which(traits == target_trait)
+    focal_outcome_idx <- NULL
+    if (!is.null(focal_trait)) {
+      if (focal_trait %in% traits) {
+        focal_outcome_idx <- which(traits == focal_trait)
       }
     }
     res_xqtl <- colocboost(
       X = X, Y = Y, dict_YX = dict_YX,
-      outcome_names = traits, target_idx = target_idx, ...
+      outcome_names = traits, focal_outcome_idx = focal_outcome_idx, ...
     )
     t12 <- Sys.time()
     analysis_results$xqtl_coloc <- res_xqtl
     analysis_results$computing_time$Analysis$xqtl_coloc <- t12 - t11
   }
-  # - run joint GWAS no targeted version of ColocBoost
+  # - run joint GWAS no focaled version of ColocBoost
   if (joint_gwas & !is.null(sumstats)) {
-    message(paste("====== Performing non-targeted version GWAS-xQTL ColocBoost on", length(Y), "contexts and", length(sumstats), "GWAS. ====="))
+    message(paste("====== Performing non-focaled version GWAS-xQTL ColocBoost on", length(Y), "contexts and", length(sumstats), "GWAS. ====="))
     t21 <- Sys.time()
     traits <- c(names(Y), names(sumstats))
     res_gwas <- colocboost(
       X = X, Y = Y, sumstat = sumstats, LD = LD_mat,
       dict_YX = dict_YX, dict_sumstatLD = dict_sumstatLD,
-      outcome_names = traits, target_idx = NULL, ...
+      outcome_names = traits, focal_outcome_idx = NULL, ...
     )
     t22 <- Sys.time()
     analysis_results$joint_gwas <- res_gwas
     analysis_results$computing_time$Analysis$joint_gwas <- t22 - t21
   }
-  # - run targeted version of ColocBoost for each GWAS
+  # - run focaled version of ColocBoost for each GWAS
   if (separate_gwas & !is.null(sumstats)) {
     t31 <- Sys.time()
     res_gwas_separate <- analysis_results$separate_gwas
     for (i_gwas in 1:nrow(dict_sumstatLD)) {
       current_study <- names(sumstats)[i_gwas]
-      message(paste("====== Performing targeted version GWAS-xQTL ColocBoost on", length(Y), "contexts and ", current_study, "GWAS. ====="))
+      message(paste("====== Performing focaled version GWAS-xQTL ColocBoost on", length(Y), "contexts and ", current_study, "GWAS. ====="))
       dict <- dict_sumstatLD[i_gwas, ]
       traits <- c(names(Y), current_study)
       res_gwas_separate[[current_study]] <- colocboost(
         X = X, Y = Y, sumstat = sumstats[dict[1]],
         LD = LD_mat[dict[2]], dict_YX = dict_YX,
-        outcome_names = traits, target_idx = length(traits), ...
+        outcome_names = traits, focal_outcome_idx = length(traits), ...
       )
     }
     t32 <- Sys.time()

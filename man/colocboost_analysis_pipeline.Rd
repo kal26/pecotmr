@@ -6,7 +6,7 @@
 \usage{
 colocboost_analysis_pipeline(
   region_data,
-  target_trait = NULL,
+  focal_trait = NULL,
   event_filters = NULL,
   xqtl_coloc = TRUE,
   joint_gwas = FALSE,
@@ -24,7 +24,7 @@ colocboost_analysis_pipeline(
 \arguments{
 \item{region_data}{A region data loaded from \code{load_regional_data}.}
 
-\item{target_trait}{Name of trait if perform targeted ColocBoost}
+\item{focal_trait}{Name of trait if perform focaled ColocBoost}
 
 \item{event_filters}{A list of pattern for filtering events based on context names. Example: for sQTL, list(type_pattern = ".*clu_(\\d+_[+-?]).*",valid_pattern = "clu_(\\d+_[+-?]):PR:",exclude_pattern = "clu_(\\d+_[+-?]):IN:")}
 
