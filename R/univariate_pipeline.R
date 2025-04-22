@@ -357,7 +357,8 @@ rss_analysis_pipeline <- function(
         }
         result_list[[method_name]] <- ser
       }
-    } 
+    result_list[["diagnostics"]] <- block_cs_metrics
+    }
   }
-  return(list(result_list = result_list, block_cs_metrics = block_cs_metrics))
+  return(result_list)
 }
