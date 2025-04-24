@@ -346,14 +346,26 @@ filter_raiss_output <- function(zscores, R2_threshold = 0.6, minimum_ld = 5, ver
 
   # Print report
   if (verbose) {
+    max_label_length <- max(nchar(c(
+      "Variants before filter:", 
+      "Non-imputed variants:", 
+      "Imputed variants:", 
+      "Variants filtered because of low LD score:", 
+      "Variants filtered because of low R2:", 
+      "Remaining variants after filter:"
+    )))
+    
+    format_line <- function(label, value) {
+      sprintf("%-*s %d", max_label_length, paste0(label, ":"), value)
+    }
+
     message("IMPUTATION REPORT\n")
-    message("Number of SNPs:\n")
-    message("before filter:", NSNPs_bf_filt, "\n")
-    message("not imputed:", NSNPs_initial, "\n")
-    message("imputed:", NSNPs_imputed, "\n")
-    message("filtered because of LD:", NSNPs_ld_filt, "\n")
-    message("filtered because of R2:", NSNPs_R2_filt, "\n")
-    message("after filter:", NSNPs_af_filt, "\n")
+    message(format_line("Variants before filter", NSNPs_bf_filt))
+    message(format_line("Non-imputed variants", NSNPs_initial))
+    message(format_line("Imputed variants", NSNPs_imputed))
+    message(format_line("Variants filtered because of low LD score", NSNPs_ld_filt))
+    message(format_line("Variants filtered because of low R2", NSNPs_R2_filt))
+    message(format_line("Remaining variants after filter", NSNPs_af_filt))
   }
   return(zscore_list = list(zscores_nofilter = zscores_nofilter, zscores = zscores))
 }
