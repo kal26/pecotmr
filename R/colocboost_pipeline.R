@@ -470,7 +470,8 @@ colocboost_analysis_pipeline <- function(region_data,
     }
     res_xqtl <- colocboost(
       X = X, Y = Y, dict_YX = dict_YX,
-      outcome_names = traits, focal_outcome_idx = focal_outcome_idx, ...
+      outcome_names = traits, focal_outcome_idx = focal_outcome_idx, 
+      output_level = 2, ...
     )
     t12 <- Sys.time()
     analysis_results$xqtl_coloc <- res_xqtl
@@ -484,7 +485,8 @@ colocboost_analysis_pipeline <- function(region_data,
     res_gwas <- colocboost(
       X = X, Y = Y, sumstat = sumstats, LD = LD_mat,
       dict_YX = dict_YX, dict_sumstatLD = dict_sumstatLD,
-      outcome_names = traits, focal_outcome_idx = NULL, ...
+      outcome_names = traits, focal_outcome_idx = NULL, 
+      output_level = 2, ...
     )
     t22 <- Sys.time()
     analysis_results$joint_gwas <- res_gwas
@@ -502,7 +504,8 @@ colocboost_analysis_pipeline <- function(region_data,
       res_gwas_separate[[current_study]] <- colocboost(
         X = X, Y = Y, sumstat = sumstats[dict[1]],
         LD = LD_mat[dict[2]], dict_YX = dict_YX,
-        outcome_names = traits, focal_outcome_idx = length(traits), ...
+        outcome_names = traits, focal_outcome_idx = length(traits), 
+        output_level = 2, ...
       )
     }
     t32 <- Sys.time()
