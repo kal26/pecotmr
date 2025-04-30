@@ -1,0 +1,119 @@
+-- Attaching core tidyverse packages ------------------------ tidyverse 2.0.0 --
+v dplyr     1.1.4     v readr     2.1.5
+v forcats   1.0.0     v stringr   1.5.1
+v ggplot2   3.5.1     v tibble    3.2.1
+v lubridate 1.9.4     v tidyr     1.3.1
+v purrr     1.0.4     
+-- Conflicts ------------------------------------------ tidyverse_conflicts() --
+x dplyr::filter() masks stats::filter()
+x dplyr::lag()    masks stats::lag()
+i Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+This is coloc version 5.2.3
+
+Attaching package: 'vctrs'
+
+The following object is masked from 'package:dplyr':
+
+    data_frame
+
+The following object is masked from 'package:tibble':
+
+    data_frame
+
+xQTL mode
+Priors are using default, P1: 1e-4, P2: 1e-4, P12: 5e-6
+Error in get_nested_element(raw_data, gwas_finemapping_obj) : 
+  Element not found in the list
+Calls: coloc_wrapper -> lapply -> FUN -> get_nested_element
+Execution halted
+
+>>> START SCRIPT (/home/user/project/codes/Apr/pecotmr/R/demo_coloc/susie_coloc_xQTL/susie_coloc_xQTL_0_6c209082.R) <<<
+
+library(tidyverse)
+# library(pecotmr)
+files <- list.files('~/project/codes/Apr/pecotmr/R', pattern = "\\.R$", full.names = TRUE)
+invisible(lapply(files, source))
+library(coloc) 
+library(vctrs)
+# RDS files for xQTL data
+xqtl_finemapped_datas = "/data/analysis_result/finemapping_twas_trans/susie_twas/ROSMAP_metaQTL.chr8_71102974_72924454.univariate_susie_twas_weights.rds"
+coloc_res <- list()
+# are we doing something like this? that means results are by each context, and each one has 
+for(xqtl_finemapped_data in xqtl_finemapped_datas){
+  qtl_dat <- readRDS(xqtl_finemapped_data)
+  gene = names(qtl_dat)
+  context = "ROSMAP_metabolome_CHEM100001571"
+  if(str_detect(context, ';')) context = '' # for multi gene/context structure
+
+  gene_region = get_nested_element(qtl_dat[[1]],  c(context,"region_info", "grange"))
+
+  # Step 1: find relevant GWAS regions that overlap each the xQTL region of interest
+  gwas_finemapped_datas <- "/data/analysis_result/single_context/MetaBrain/eqtl_rss/RSS_QC_RAISS_imputed.chr8_70197433_72568767_ENSG00000104313.univariate_susie_rss.rds"
+  gwas_finemapped_datas <- gwas_finemapped_datas[grep('rds$',gwas_finemapped_datas)]
+
+  gwas_regions <- gwas_finemapped_datas %>% basename %>% str_extract(., "chr\\d+_\\d+_\\d+")
+  overlap_index <- NULL
+if(FALSE){
+  gwas_regions <- gwas_finemapped_datas %>% basename %>% str_extract(., "chr\\d+_\\d+_\\d+")
+  overlap_index <- NULL
+  for (i in 1:length(gwas_regions)) {
+    region <- gwas_regions[i]
+    split_region <- unlist(strsplit(region, "_"))
+    block_chrom <- as.numeric(split_region[1] %>% gsub("chr","",.))
+    block_start <- as.numeric(split_region[2] %>% strsplit(., "-") %>% unlist %>% .[1])
+    block_end <- as.numeric(split_region[2] %>% strsplit(., "-") %>% unlist %>% .[2])
+    if (gene_region$chrom == block_chrom && (gene_region$start <= block_end |  gene_region$end >= block_start)) {
+      overlap_index <- c(overlap_index, i)
+    }
+    context_gwas = ''
+  }
+} else {
+    message('xQTL mode')
+    context_gwas = "Metabrain_Cortex"
+    context_gwas = if(str_detect(context_gwas, ';')) context = '' # for multi gene/context structure
+
+    overlap_index <- 1 
+}
+ if (!is.null(overlap_index)) {
+   gwas_finemapped_data <- gwas_finemapped_datas[overlap_index]
+
+   # Step 2: load enrichment analysis results
+   # Extract values for p1, p2, and p12
+ if(FALSE){
+   enrich_file = paste0('/home/user/project/codes/Apr/pecotmr/R/demo_coloc','/', 'ROSMAP_metabolome_CHEM100001571','.', 'Metabrain_Cortex', '.' ,context,'.enrichment.rds')
+   p1 <-  readRDS(enrich_file)[[1]]$`Alternative (coloc) p1`
+   p2 <-  readRDS(enrich_file)[[1]]$`Alternative (coloc) p2`
+   p12 <-  readRDS(enrich_file)[[1]]$`Alternative (coloc) p12`
+
+   message("Priors are P1:", p1, "; p2: ", p2, "; p12: ", p12)
+ } else {
+   p1 = 1e-4
+   p2 = 1e-4
+   p12 = 5e-6
+   message("Priors are using default, P1: 1e-4, P2: 1e-4, P12: 5e-6" )
+ }
+   # Step 3: Apply colocalization analysis between each condition and GWAS
+   coloc_res[[gene]] <- coloc_wrapper(xqtl_file = xqtl_finemapped_data, gwas_files = gwas_finemapped_data, 
+                                      xqtl_finemapping_obj =  c(context,"susie_result_trimmed"), 
+                                      xqtl_varname_obj =   c(context,"variant_names"), 
+                                      gwas_finemapping_obj =  c(context_gwas,"RSS_QC_RAISS_imputed","susie_result_trimmed"), 
+                                      gwas_varname_obj =  c(context_gwas,"RSS_QC_RAISS_imputed","variant_names"),
+                                      xqtl_region_obj =   c(context,"region_info","grange"), 
+                                      gwas_region_obj =  c(context_gwas,"RSS_QC_RAISS_imputed","region_info","grange"),
+                                      p1 = p1, p2 = p2, p12 = p12, filter_lbf_cs = TRUE, filter_lbf_cs_secondary = 0.5)
+
+    if (FALSE) {
+      if(length(coloc_res[[gene]]) > 2) {
+          coloc_res[[gene]] <- coloc_post_processor(coloc_res[[gene]], LD_meta_file_path = '.', analysis_region = coloc_res[[gene]]$analysis_region)
+        if(!is.null(coloc_res[[gene]]$sets$cs))  writeLines(coloc_res[[gene]]$sets$cs %>% unlist, gsub("rds$","coloc_res","/home/user/project/codes/Apr/pecotmr/R/demo_coloc/susie_coloc_xQTL/ROSMAP_metabolome_CHEM100001571.Metabrain_Cortex.coloc.rds"))
+      } else { message("No coloc results were generated.") }
+    }
+
+  } else {
+    message("No overlap was found between GWAS blocks and QTL analysis region.")
+    coloc_res <-  "No overlap was found between GWAS blocks and QTL analysis region."
+  }
+}
+saveRDS(coloc_res, '/home/user/project/codes/Apr/pecotmr/R/demo_coloc/susie_coloc_xQTL/ROSMAP_metabolome_CHEM100001571.Metabrain_Cortex.coloc.rds')
+
+>>> END SCRIPT <<<

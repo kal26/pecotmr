@@ -112,11 +112,72 @@ calculate_cumsum <- function(coloc_results) {
 
 #' Function to load and extract LD matrix
 #' @noRd
-load_and_extract_ld_matrix <- function(ld_meta_file_path, analysis_region, variants) {
-  # This is a placeholder for loading LD matrix, adjust as per your actual function
-  ld_ref <- load_LD_matrix(LD_meta_file_path = ld_meta_file_path, region = analysis_region)
-  ext_ld <- ld_ref$combined_LD_matrix[variants, variants]
-  ext_ld
+load_and_extract_ld_matrix <- function(ld_meta_file_path, analysis_region, variants, ld_ref = NULL, in_sample = NULL) {
+  # Extract variant positions
+  var_pos <- str_split(variants, ":", simplify = TRUE)[,2] %>% as.numeric()
+  min_var_pos <- min(var_pos)
+  max_var_pos <- max(var_pos)
+  chr <- str_split(analysis_region, ":", simplify = TRUE)[,1]
+  analysis_region_narrow <- paste0(chr, ":", min_var_pos, "-", max_var_pos)
+
+  # --- Determine mode if not explicitly provided ---
+  if (is.null(ld_ref) && is.null(in_sample)) {
+    ld_ref <- TRUE  # Default assumption
+    if (grepl("plink|genotype|\\.bed$|\\.bim$|\\.fam$", ld_meta_file_path)) {
+      ld_ref <- FALSE
+      in_sample <- TRUE
+    } else {
+      in_sample <- FALSE
+    }
+  }
+
+  # --- Enforce exclusivity ---
+  if (isTRUE(ld_ref)) in_sample <- FALSE
+  if (isTRUE(in_sample)) ld_ref <- FALSE
+
+  # --- LD reference mode ---
+  if (ld_ref) {
+    message("Using LD reference mode")
+    ld_ref_data <- load_LD_matrix(
+      LD_meta_file_path = ld_meta_file_path,
+      region = analysis_region_narrow
+    )
+    ext_ld <- ld_ref_data$combined_LD_matrix[variants, variants]
+    return(ext_ld)
+  }
+
+  # --- In-sample genotype mode ---
+  if (in_sample) {
+    message("Using in-sample genotype mode")
+
+    if (grepl("\\.txt$", ld_meta_file_path)) {
+      geno_meta <- read_tsv(ld_meta_file_path, comment = "#", col_names = c("id", "path"), show_col_types = FALSE)
+      chr_num <- gsub("^chr", "", chr)
+      geno_path <- geno_meta %>% filter(id == chr_num) %>% pull(path) %>% basename %>% paste0(dirname(ld_meta_file_path), "/", .)
+
+      if (length(geno_path) != 1) stop("No matching entry found in metadata for chromosome ", chr)
+
+      geno_prefix <- str_remove(geno_path, "\\.bed$")
+    } else if (grepl("\\.bed$", ld_meta_file_path)) {
+      geno_prefix <- str_remove(ld_meta_file_path, "\\.bed$")
+    } else {
+      stop("In in-sample mode, expected plink file or .txt genotype metadata file.")
+    }
+
+    # Load original genotype data 
+    ld_mat <- load_genotype_region(geno_prefix, region = analysis_region_narrow, keep_indel = TRUE, keep_variants_path = NULL )
+      
+    # Change colname format of genotype data
+    colnames(ld_mat) <- colnames(ld_mat) %>% gsub('chr','',.) %>% gsub('_',':',.)
+      
+    # Mean imputation
+    ld_mat_imputed <- apply(ld_mat, 2, function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x))
+    ext_ld <- get_cormat(ld_mat_imputed)
+    ext_ld <- ext_ld[variants, variants]
+    return(ext_ld)
+  }
+
+  stop("Neither LD mode was activated — check inputs.")
 }
 
 #' Function to calculate purity
@@ -225,14 +286,30 @@ process_coloc_results <- function(coloc_result, LD_meta_file_path, analysis_regi
 coloc_wrapper <- function(xqtl_file, gwas_files,
                           xqtl_finemapping_obj = NULL, xqtl_varname_obj = NULL, xqtl_region_obj = NULL,
                           gwas_finemapping_obj = NULL, gwas_varname_obj = NULL, gwas_region_obj = NULL,
-                          filter_lbf_cs = FALSE, prior_tol = 1e-9, p1 = 1e-4, p2 = 1e-4, p12 = 5e-6, ...) {
+                          filter_lbf_cs = FALSE, filter_lbf_cs_secondary = NULL,
+                          prior_tol = 1e-9, p1 = 1e-4, p2 = 1e-4, p12 = 5e-6, ...) {
+  # define filter_lbf_cs_secondary
+  if (is.null(filter_lbf_cs_secondary)) {
+    filter_lbf_cs_secondary <- filter_lbf_cs_secondary
+  } else {
+    filter_lbf_cs_secondary <- paste0('coverage_', filter_lbf_cs_secondary)
+  }
   # Load and process GWAS data
   gwas_lbf_matrices <- lapply(gwas_files, function(file) {
     raw_data <- readRDS(file)[[1]]
     gwas_data <- if (!is.null(gwas_finemapping_obj)) get_nested_element(raw_data, gwas_finemapping_obj) else raw_data
     gwas_lbf_matrix <- as.data.frame(gwas_data$lbf_variable)
-    if (filter_lbf_cs) {
-      gwas_lbf_matrix <- gwas_lbf_matrix[gwas_data$sets$cs_index, ]
+      # fsusie has a different structure
+    if(is.null(gwas_lbf_matrix) | nrow(gwas_lbf_matrix)==0){
+        gwas_lbf_matrix <- do.call(rbind, raw_data[[1]]$fsusie_result$lBF) %>% as.data.frame
+        if(nrow(gwas_lbf_matrix) > 0) message("This is a fSuSiE case")
+    }
+    if (filter_lbf_cs & is.null(filter_lbf_cs_secondary)) {
+        gwas_lbf_matrix <- gwas_lbf_matrix[gwas_data$sets$cs_index, 
+            ]
+    } else if (!is.null(filter_lbf_cs_secondary)) {
+        gwas_lbf_matrix <- gwas_lbf_matrix[gwas_data[['sets_secondary']][[filter_lbf_cs_secondary]]$sets$cs_index, 
+            ]
     } else {
       gwas_lbf_matrix <- gwas_lbf_matrix[gwas_data$V > prior_tol, ]
     }
@@ -267,9 +344,18 @@ coloc_wrapper <- function(xqtl_file, gwas_files,
   }
   if (!is.null(xqtl_data)) {
     xqtl_lbf_matrix <- as.data.frame(xqtl_data$lbf_variable)
+    # fsusie has a different structure
+    if(is.null(xqtl_lbf_matrix) | nrow(xqtl_lbf_matrix)==0){
+        xqtl_lbf_matrix <- do.call(rbind, xqtl_raw_data[[1]]$fsusie_result$lBF) %>% as.data.frame
+        if(nrow(xqtl_lbf_matrix) > 0) message("This is a fSuSiE case")
+    }
     # fsusie data does not have V element in results
-    if (filter_lbf_cs) {
-      xqtl_lbf_matrix <- xqtl_lbf_matrix[xqtl_data$sets$cs_index, ]
+    if (filter_lbf_cs & is.null(filter_lbf_cs_secondary)) {
+        xqtl_lbf_matrix <- xqtl_lbf_matrix[xqtl_data$sets$cs_index, 
+            ]
+    } else if (!is.null(filter_lbf_cs_secondary)) {
+        xqtl_lbf_matrix <- xqtl_lbf_matrix[xqtl_data[['sets_secondary']][[filter_lbf_cs_secondary]]$sets$cs_index, 
+            ]
     } else {
       if ("V" %in% names(xqtl_data)) xqtl_lbf_matrix <- xqtl_lbf_matrix[xqtl_data$V > prior_tol, ] else (message("No V found in orginal data."))
     }

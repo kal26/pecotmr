@@ -27,7 +27,7 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
                       match_min_prop = 0.2, remove_dups = TRUE,
                       remove_indels = FALSE, remove_strand_ambiguous = TRUE,
                       flip_strand = FALSE, remove_unmatched = TRUE, remove_same_vars = FALSE) {
-  strand_flip <- function(ref) {
+    strand_flip <- function(ref) {
     # Define a mapping for complementary bases
     base_mapping <- c("A" = "T", "T" = "A", "G" = "C", "C" = "G")
 
@@ -130,6 +130,7 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
     match_result[strand_flipped_indices, "A2.target"] <- strand_flip(match_result[strand_flipped_indices, "A2.target"])
   }
 
+
   # FIXME: I think this parameter is confusing. I inheritated directly from our function, whose default setting is TRUE.
   # It is removing all multi-allelic alleles which is unnecessary. I suggest remove this parameter directly.
   # What we are trying to avoid is the SAME allele having diferent z score. I defined one parameter remove_same_vars later, but I can re-use this
@@ -148,7 +149,7 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
 
   result <- result %>%
     select(-(flip1.ref:keep)) %>%
-    select(-variants_id_original, -A1.target, -A2.target) %>%
+    select(-A1.target, -A2.target) %>%
     rename(A1 = A1.ref, A2 = A2.ref, variant_id = variants_id_qced)
 
   # default FALSE, but if want to remove same variants having different z score, then set as TRUE
@@ -161,14 +162,15 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
   }
 
   if (!remove_unmatched) {
-    match_variant <- match_result %>% pull(variants_id_original)
+    match_variant <- result %>% pull(variants_id_original)
     match_result <- select(match_result, -(flip1.ref:keep)) %>%
       select(-variants_id_original, -A1.target, -A2.target) %>%
       rename(A1 = A1.ref, A2 = A2.ref, variant_id = variants_id_qced)
     target_data <- target_data %>% mutate(variant_id = paste(chrom, pos, A2, A1, sep = ":"))
     if (length(setdiff(target_data %>% pull(variant_id), match_variant)) > 0) {
       unmatch_data <- target_data %>% filter(!variant_id %in% match_variant)
-      result <- rbind(result, unmatch_data)
+      result <- rbind(result, unmatch_data %>% mutate(variants_id_original = variant_id))
+      result <- result[match(target_data$variant_id, result$variants_id_original), ] %>% select(-variants_id_original)
     }
   }
 

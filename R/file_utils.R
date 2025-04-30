@@ -990,3 +990,17 @@ batch_load_twas_weights <- function(twas_weights_results, meta_data_df, max_memo
   names(batches) <- NULL
   return(batches)
 }
+
+#' @export
+get_cormat <- function(X, intercepte = TRUE) {
+  X <- t(X)
+  # Center each variable
+  if (intercepte) {
+    X <- X - rowMeans(X)
+  }
+  # Standardize each variable
+  X <- X / sqrt(rowSums(X^2))
+  # Calculate correlations
+  cr <- tcrossprod(X)
+  return(cr)
+}
