@@ -286,16 +286,22 @@ auto_decision <- function(df, high_corr_cols) {
 
   # Count total and remaining CS
   total_cs <- nrow(df)
+  print("total_cs")
+  print(total_cs)
   tagged_cs_count <- sum(df$tagged_cs)
-  remaining_cs <- total_cs - 1 - tagged_cs_count
-
+  if (total_cs > 0) {
+    remaining_cs <- total_cs - 1 - tagged_cs_count
+  } else {
+    remaining_cs <- 0
+  }
   # Determine method
   df$method <- case_when(
-    total_cs == 1 | (tagged_cs_count == 0 & remaining_cs == 0) ~ "BVSR",
-    remaining_cs == 0 ~ "SER",
-    remaining_cs > 0 ~ "BCR",
-    TRUE ~ NA_character_
-  )
+  tagged_cs_count == 0 & total_cs > 1 ~ "BVSR",
+  (remaining_cs == 0 & total_cs > 1) | (total_cs == 1) ~ "SER",
+  remaining_cs > 0 ~ "BCR",
+  TRUE ~ NA_character_
+)
+
 
   return(df)
 }

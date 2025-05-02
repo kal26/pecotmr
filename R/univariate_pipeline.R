@@ -200,7 +200,6 @@ rss_analysis_pipeline <- function(
   if (nrow(sumstats)==0){
       return(list(rss_data_analyzed = sumstats))
   }
-
   # Preprocess the input data
   preprocess_results <- rss_basic_qc(sumstats, LD_data, skip_region = skip_region, remove_indels = remove_indels)
   sumstats <- preprocess_results$sumstats
@@ -219,14 +218,12 @@ rss_analysis_pipeline <- function(
       message(paste("Follow-up on region because signals above PIP threshold", pip_cutoff_to_skip, "were detected in initial model screening."))
     }
   }
-
   # Perform quality control
   if (!is.null(qc_method)) {
     qc_results <- summary_stats_qc(sumstats, LD_data, n = n, var_y = var_y, method = qc_method)
     sumstats <- qc_results$sumstats
     LD_mat <- qc_results$LD_mat
   }
-
   # Perform imputation
   if (impute) {
     LD_matrix <- partition_LD_matrix(LD_data)
@@ -234,7 +231,6 @@ rss_analysis_pipeline <- function(
     sumstats <- impute_results$result_filter
     LD_mat <- impute_results$LD_mat
   }
-
   # Perform fine-mapping
   if (!is.null(finemapping_method)) {
     pri_coverage <- finemapping_opts$coverage[1]
@@ -311,7 +307,6 @@ rss_analysis_pipeline <- function(
               method_name <- paste0(finemapping_method, "_", "NO_QC")
           }
           result_list[[method_name]] <- bcr
-          
           finemapping_method <- "single_effect"
           sumstats <- preprocess_results$sumstats
           LD_mat <- preprocess_results$LD_mat

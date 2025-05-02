@@ -28,7 +28,7 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
   knowns_id <- intersect(known_zscores$variant_id, ref_panel$variant_id)
   knowns <- which(ref_panel$variant_id %in% knowns_id)
   unknowns <- which(!ref_panel$variant_id %in% knowns_id)
-
+  
   # Handle edge cases
   if (length(knowns) == 0) {
     if (verbose) message("No known variants found, cannot perform imputation.")
@@ -51,10 +51,8 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
 
   # Call raiss_model
   results <- raiss_model(zt, sig_t, sig_i_t, lamb, rcond)
-
   # Format the results
   results <- format_raiss_df(results, ref_panel, unknowns)
-
   # Filter output
   results <- filter_raiss_output(results, R2_threshold, minimum_ld, verbose)
 
@@ -72,7 +70,6 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
   } else {
     as.matrix(LD_matrix)
   }
-
   # Return results
   return(list(
     result_nofilter = result_nofilter,
@@ -193,7 +190,6 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01, rcond = 0.01
       lamb, rcond, R2_threshold, minimum_ld,
       verbose = FALSE
     )
-
     # Skip if block returned NULL (no known variants)
     if (!is.null(block_result)) {
       results_list[[block_id]] <- block_result
