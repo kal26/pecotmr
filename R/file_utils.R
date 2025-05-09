@@ -990,3 +990,27 @@ batch_load_twas_weights <- function(twas_weights_results, meta_data_df, max_memo
   names(batches) <- NULL
   return(batches)
 }
+
+#' Function to load LD reference data variants
+#' @export
+#' @noRd
+load_ld_snp_info <- function(ld_meta_file_path, region_of_interest) {
+  bim_file_path <- get_regional_ld_meta(ld_meta_file_path, region_of_interest)$intersections$bim_file_paths
+  bim_data <- lapply(bim_file_path, function(bim_file) as.data.frame(vroom(bim_file, col_names = FALSE)))
+  snp_info <- setNames(lapply(bim_data, function(info_table) {
+    # for TWAS and MR, the variance and allele_freq are not necessary
+    if (ncol(info_table) >= 8) {
+      info_table <- info_table[, c(1, 2, 4:8)]
+      colnames(info_table) <- c("chrom", "id", "pos", "alt", "ref", "variance", "allele_freq")
+    } else if (ncol(info_table) == 6) {
+      info_table <- info_table[, c(1, 2, 4:6)]
+      colnames(info_table) <- c("chrom", "id", "pos", "alt", "ref")
+    } else {
+      warning("Unexpected number of columns; skipping this element.")
+      return(NULL)
+    }
+    info_table$id <- gsub("chr", "", gsub("_", ":", info_table$id))
+    return(info_table)
+  }), sapply(names(bim_data), function(x) gsub("chr", "", paste(strsplit(basename(x), "[_:/.]")[[1]][1:3], collapse = "_"))))
+  return(snp_info)
+}
