@@ -412,7 +412,6 @@ corr_filter <- function(X, cor_thres = 0.8) {
 #' @param response Optional response vector for "response_correlation" strategy
 #' @param max_iterations Maximum number of iterations to attempt removing problematic columns
 #' @return Cleaned matrix X with problematic columns removed
-#' @importFrom stats qr
 #' @noRd
 check_remove_highcorr_snp <- function(X = X, C = C, strategy = c("correlation", "variance", "response_correlation"), response = NULL, max_iterations = 300, corr_thresholds = seq(0.75, 0.5, by = -0.05)) {
   strategy <- match.arg(strategy)
