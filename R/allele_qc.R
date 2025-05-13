@@ -130,23 +130,22 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
     match_result[strand_flipped_indices, "A2.target"] <- strand_flip(match_result[strand_flipped_indices, "A2.target"])
   }
 
-
+  # Remove all unnecessary columns used to determine qc status
+  # Finally keep those variants with FLAG keep = TRUE
+  result <- match_result[match_result$keep, , drop = FALSE]
+    
   # FIXME: I think this parameter is confusing. I inheritated directly from our function, whose default setting is TRUE.
   # It is removing all multi-allelic alleles which is unnecessary. I suggest remove this parameter directly.
   # What we are trying to avoid is the SAME allele having diferent z score. I defined one parameter remove_same_vars later, but I can re-use this
   # remove_dup name
   if (remove_dups) {
-    dups <- vec_duplicate_detect(match_result[, c("chrom", "pos", "variants_id_qced")])
+    dups <- vec_duplicate_detect(result[, c("chrom", "pos", "variants_id_qced")])
     if (any(dups)) {
-      match_result <- match_result[!dups, , drop = FALSE]
-      message("Some duplicates were removed.")
+      result <- result[!dups, , drop = FALSE]
+      Warning("Unexpected duplicates were removed.")
     }
   }
-
-  # Remove all unnecessary columns used to determine qc status
-  # Finally keep those variants with FLAG keep = TRUE
-  result <- match_result[match_result$keep, , drop = FALSE]
-
+    
   result <- result %>%
     select(-(flip1.ref:keep)) %>%
     select(-A1.target, -A2.target) %>%
@@ -232,7 +231,7 @@ align_variant_names <- function(source, reference, remove_indels = FALSE) {
     ref_variants = reference_df,
     col_to_flip = NULL,
     match_min_prop = 0,
-    remove_dups = TRUE,
+    remove_dups = FALSE, #otherwise case like c('14:31234238:C:A','14:31234238:C:G') -- c('14:31234238:G:C','14:31234238:G:C') would not work
     flip_strand = TRUE,
     remove_indels = remove_indels,
     remove_strand_ambiguous = FALSE,

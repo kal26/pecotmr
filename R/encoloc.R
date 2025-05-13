@@ -168,12 +168,15 @@ load_and_extract_ld_matrix <- function(ld_meta_file_path, analysis_region, varia
     ld_mat <- load_genotype_region(geno_prefix, region = analysis_region_narrow, keep_indel = TRUE, keep_variants_path = NULL )
       
     # Change colname format of genotype data
-    colnames(ld_mat) <- colnames(ld_mat) %>% gsub('chr','',.) %>% gsub('_',':',.)
-      
-    # Mean imputation
-    ld_mat_imputed <- apply(ld_mat, 2, function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x))
-    ext_ld <- get_cormat(ld_mat_imputed)
-    ext_ld <- ext_ld[variants, variants]
+    colnames(ld_mat) <- align_variant_names(colnames(ld_mat), variants)$aligned_variants
+    ld_mat <- ld_mat[, variants]  # subset target variants then get imputation and correlation
+    if(length(variants) > 1) {
+        # Mean imputation
+        ld_mat_imputed <- apply(ld_mat, 2, function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x))
+        ext_ld <- get_cormat(ld_mat_imputed)
+    } else {
+        ext_ld = as.matrix(1)
+    }
     return(ext_ld)
   }
 
@@ -288,6 +291,7 @@ coloc_wrapper <- function(xqtl_file, gwas_files,
                           gwas_finemapping_obj = NULL, gwas_varname_obj = NULL, gwas_region_obj = NULL,
                           filter_lbf_cs = FALSE, filter_lbf_cs_secondary = NULL,
                           prior_tol = 1e-9, p1 = 1e-4, p2 = 1e-4, p12 = 5e-6, ...) {
+  region <- NULL # define first to avoid element can not be found
   # Load and process GWAS data
   gwas_lbf_matrices <- lapply(gwas_files, function(file) {
     raw_data <- readRDS(file)[[1]]
@@ -307,6 +311,8 @@ coloc_wrapper <- function(xqtl_file, gwas_files,
       gwas_lbf_matrix <- gwas_lbf_matrix[gwas_data$V > prior_tol,, drop = F]
     }
     if (!is.null(gwas_varname_obj)) colnames(gwas_lbf_matrix) <- get_nested_element(raw_data, gwas_varname_obj)
+    # fsusie could have NA in variant name
+    gwas_lbf_matrix <- gwas_lbf_matrix[,!is.na(colnames(gwas_lbf_matrix))] 
     return(gwas_lbf_matrix)
   })
 
@@ -353,7 +359,9 @@ coloc_wrapper <- function(xqtl_file, gwas_files,
     }
     if (nrow(combined_gwas_lbf_matrix) > 0 && nrow(xqtl_lbf_matrix) > 0) {
       if (!is.null(xqtl_varname_obj)) colnames(xqtl_lbf_matrix) <- get_nested_element(xqtl_raw_data, xqtl_varname_obj)
-
+      # fsusie could have NA in variant name
+      xqtl_lbf_matrix <- xqtl_lbf_matrix[,!is.na(colnames(xqtl_lbf_matrix))] 
+        
       colnames(xqtl_lbf_matrix) <- align_variant_names(colnames(xqtl_lbf_matrix), colnames(combined_gwas_lbf_matrix))$aligned_variants
       common_colnames <- intersect(colnames(xqtl_lbf_matrix), colnames(combined_gwas_lbf_matrix))
       xqtl_lbf_matrix <- xqtl_lbf_matrix[, common_colnames, drop = FALSE] %>% as.matrix()
