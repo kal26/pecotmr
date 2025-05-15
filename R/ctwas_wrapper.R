@@ -68,12 +68,11 @@ trim_ctwas_variants <- function(region_data, twas_weight_cutoff = 1e-5, cs_min_c
     high_pip_variants <- names(context_pip[context_pip > min_pip_cutoff])[names(context_pip[context_pip > min_pip_cutoff]) %in% rownames(weight_list$wgt)]
     selected_variants_by_context <- unique(c(selected_variants_by_context, high_pip_variants))
 
-    if (length(selected_variants_by_context) < max_num_variants) {
-      remaining_var_num <- max_num_variants - length(selected_variants_by_context)
-      available_variants <- setdiff(names(context_pip)[names(context_pip) %in% rownames(weight_list$wgt)], selected_variants_by_context)
-      context_pip <- context_pip[available_variants]
-      selected_variants_by_context <- c(selected_variants_by_context, names(context_pip[order(-context_pip)])[1:remaining_var_num])
-    }
+    # prioritize SNPs based on PIP if max_num_variants different from Inf 
+    available_variants <- intersect(rownames(weight_list$wgt), names(context_pip))
+    prioritized <- unique(c(selected_variants_by_context, setdiff(available_variants, selected_variants_by_context)))
+    prioritized <- prioritized[order(-context_pip[prioritized])]
+    selected_variants_by_context <- head(prioritized, max_num_variants) 
     weight_list$wgt <- weight_list$wgt[selected_variants_by_context, , drop = FALSE]
     return(weight_list)
   }
