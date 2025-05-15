@@ -348,9 +348,6 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
       # Use region chromosome as fallback for empty blocks
       block_chroms[j] <- as.character(intersected_LD_files$region$chrom)
     }
-
-    # Remove large objects to free memory
-    rm(LD_matrix_processed, extracted_LD_list)
   }
 
   # Create combined LD matrix
@@ -494,7 +491,6 @@ partition_LD_matrix <- function(ld_data, merge_small_blocks = TRUE,
 
   # Partition the matrix based on block metadata
   result <- extract_block_matrices(combined_matrix, block_metadata, variant_ids)
-
   return(result)
 }
 
@@ -708,6 +704,7 @@ extract_block_matrices <- function(matrix, block_metadata, variant_ids) {
       stringsAsFactors = FALSE
     )
     variant_mapping <- rbind(variant_mapping, block_mapping)
+
   }
 
   return(list(

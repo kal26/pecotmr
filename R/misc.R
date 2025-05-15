@@ -603,6 +603,36 @@ z_to_beta_se <- function(z, maf, n) {
   return(data.frame(beta = beta, se = se, maf = p))
 }
 
+#' Convert Z-scores to P-values
+#'
+#' This function calculates p-values from given z-scores using a two-tailed normal distribution.
+#' It supports vector input to process multiple z-scores simultaneously.
+#'
+#' @param z Numeric vector. The z-scores to be converted to p-values.
+#'
+#' @return A numeric vector of p-values corresponding to the input z-scores.
+#'
+#' @details
+#' The function uses the following formula to calculate p-values:
+#' p-value = 2 * Φ(-|z|)
+#' Where Φ is the cumulative distribution function of the standard normal distribution.
+#'
+#' @examples
+#' z <- c(2.5, -1.8, 3.2, 0.7)
+#' pvalues <- z_to_pvalue(z)
+#' print(pvalues)
+#'
+#' @note
+#' This function assumes that the input z-scores are from a two-tailed test and
+#' are normally distributed. It calculates two-sided p-values.
+#' For extremely large absolute z-scores, the resulting p-values may be computed as zero
+#' due to floating-point limitations in R. This occurs when the absolute z-score > 37.
+#'
+#' @export
+z_to_pvalue <- function(z) {
+  2 * pnorm(-abs(z))
+}
+                                                                                 
 #' Filter events based on provided context name pattern
 #'       
 #' @param events A character vector of event names 

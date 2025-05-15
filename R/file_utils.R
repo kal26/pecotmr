@@ -489,6 +489,11 @@ load_regional_association_data <- function(genotype, # PLINK file
   ))
 }
 
+#' Load Regional Univariate Association Data
+#'
+#' This function loads regional association data for univariate analysis.
+#' It includes residual matrices, original genotype data, and additional metadata.
+#'
 #' @importFrom matrixStats colVars
 #' @return A list
 #' @export
@@ -508,6 +513,11 @@ load_regional_univariate_data <- function(...) {
   ))
 }
 
+#' Load Regional Data for Regression Modeling
+#'
+#' This function loads regional association data formatted for regression modeling.
+#' It includes phenotype, genotype, and covariate matrices along with metadata.
+#'
 #' @return A list
 #' @export
 load_regional_regression_data <- function(...) {
@@ -543,6 +553,11 @@ pheno_list_to_mat <- function(data_list) {
   return(data_list)
 }
 
+#' Load and Preprocess Regional Multivariate Data
+#'
+#' This function loads regional association data and processes it into a multivariate format.
+#' It optionally filters out samples based on missingness thresholds in the response matrix.
+#'
 #' @importFrom matrixStats colVars
 #' @return A list
 #' @export
@@ -578,6 +593,10 @@ load_regional_multivariate_data <- function(matrix_y_min_complete = NULL, # when
   ))
 }
 
+#' Load Regional Functional Association Data
+#'
+#' This function loads precomputed regional functional association data.
+#'
 #' @return A list
 #' @export
 load_regional_functional_data <- function(...) {
@@ -1030,4 +1049,27 @@ get_filter_lbf_index <- function(susie_obj, coverage = 0.5, size_factor = 0.5) {
 
   # Return filtered lbf_variable rows (one per CS)
   return(cs_index)
+
+#' Function to load LD reference data variants
+#' @export
+#' @noRd
+load_ld_snp_info <- function(ld_meta_file_path, region_of_interest) {
+  bim_file_path <- get_regional_ld_meta(ld_meta_file_path, region_of_interest)$intersections$bim_file_paths
+  bim_data <- lapply(bim_file_path, function(bim_file) as.data.frame(vroom(bim_file, col_names = FALSE)))
+  snp_info <- setNames(lapply(bim_data, function(info_table) {
+    # for TWAS and MR, the variance and allele_freq are not necessary
+    if (ncol(info_table) >= 8) {
+      info_table <- info_table[, c(1, 2, 4:8)]
+      colnames(info_table) <- c("chrom", "id", "pos", "alt", "ref", "variance", "allele_freq")
+    } else if (ncol(info_table) == 6) {
+      info_table <- info_table[, c(1, 2, 4:6)]
+      colnames(info_table) <- c("chrom", "id", "pos", "alt", "ref")
+    } else {
+      warning("Unexpected number of columns; skipping this element.")
+      return(NULL)
+    }
+    info_table$id <- gsub("chr", "", gsub("_", ":", info_table$id))
+    return(info_table)
+  }), sapply(names(bim_data), function(x) gsub("chr", "", paste(strsplit(basename(x), "[_:/.]")[[1]][1:3], collapse = "_"))))
+  return(snp_info)
 }

@@ -437,6 +437,12 @@ enet_weights <- function(X, y) glmnet_weights(X, y, 0.5)
 #' @export
 lasso_weights <- function(X, y) glmnet_weights(X, y, 1)
 
+#' Compute Weights Using mr.ash Shrinkage
+#'
+#' This function fits the `mr.ash` model (adaptive shrinkage regression) to estimate weights
+#' for a given set of predictors and response. It uses optional prior standard deviation initialization
+#' and can accept custom initial beta values.
+#'
 #' @examples
 #' wgt.mr.ash <- mrash_weights(eqtl$X, eqtl$y_res, beta.init = lasso_weights(X, y))
 #' @importFrom stats predict

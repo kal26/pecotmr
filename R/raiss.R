@@ -28,7 +28,7 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
   knowns_id <- intersect(known_zscores$variant_id, ref_panel$variant_id)
   knowns <- which(ref_panel$variant_id %in% knowns_id)
   unknowns <- which(!ref_panel$variant_id %in% knowns_id)
-
+  
   # Handle edge cases
   if (length(knowns) == 0) {
     if (verbose) message("No known variants found, cannot perform imputation.")
@@ -51,10 +51,8 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
 
   # Call raiss_model
   results <- raiss_model(zt, sig_t, sig_i_t, lamb, rcond)
-
   # Format the results
   results <- format_raiss_df(results, ref_panel, unknowns)
-
   # Filter output
   results <- filter_raiss_output(results, R2_threshold, minimum_ld, verbose)
 
@@ -72,7 +70,6 @@ raiss_single_matrix <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01
   } else {
     as.matrix(LD_matrix)
   }
-
   # Return results
   return(list(
     result_nofilter = result_nofilter,
@@ -193,7 +190,6 @@ raiss <- function(ref_panel, known_zscores, LD_matrix, lamb = 0.01, rcond = 0.01
       lamb, rcond, R2_threshold, minimum_ld,
       verbose = FALSE
     )
-
     # Skip if block returned NULL (no known variants)
     if (!is.null(block_result)) {
       results_list[[block_id]] <- block_result
@@ -346,14 +342,26 @@ filter_raiss_output <- function(zscores, R2_threshold = 0.6, minimum_ld = 5, ver
 
   # Print report
   if (verbose) {
+    max_label_length <- max(nchar(c(
+      "Variants before filter:", 
+      "Non-imputed variants:", 
+      "Imputed variants:", 
+      "Variants filtered because of low LD score:", 
+      "Variants filtered because of low R2:", 
+      "Remaining variants after filter:"
+    )))
+    
+    format_line <- function(label, value) {
+      sprintf("%-*s %d", max_label_length, paste0(label, ":"), value)
+    }
+
     message("IMPUTATION REPORT\n")
-    message("Number of SNPs:\n")
-    message("before filter:", NSNPs_bf_filt, "\n")
-    message("not imputed:", NSNPs_initial, "\n")
-    message("imputed:", NSNPs_imputed, "\n")
-    message("filtered because of LD:", NSNPs_ld_filt, "\n")
-    message("filtered because of R2:", NSNPs_R2_filt, "\n")
-    message("after filter:", NSNPs_af_filt, "\n")
+    message(format_line("Variants before filter", NSNPs_bf_filt))
+    message(format_line("Non-imputed variants", NSNPs_initial))
+    message(format_line("Imputed variants", NSNPs_imputed))
+    message(format_line("Variants filtered because of low LD score", NSNPs_ld_filt))
+    message(format_line("Variants filtered because of low R2", NSNPs_R2_filt))
+    message(format_line("Remaining variants after filter", NSNPs_af_filt))
   }
   return(zscore_list = list(zscores_nofilter = zscores_nofilter, zscores = zscores))
 }
