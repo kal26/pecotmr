@@ -14,6 +14,7 @@ coloc_wrapper(
   gwas_varname_obj = NULL,
   gwas_region_obj = NULL,
   filter_lbf_cs = FALSE,
+  filter_lbf_cs_secondary = NULL,
   prior_tol = 1e-09,
   p1 = 1e-04,
   p2 = 1e-04,

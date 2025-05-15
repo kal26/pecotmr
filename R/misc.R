@@ -326,6 +326,7 @@ get_nested_element <- function(nested_list, name_vector) {
   if (is.null(name_vector)) {
     return(NULL)
   }
+  name_vector <- name_vector[name_vector!='']
   current_element <- nested_list
   for (name in name_vector) {
     if (is.null(current_element[[name]])) {

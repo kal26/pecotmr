@@ -1010,6 +1010,46 @@ batch_load_twas_weights <- function(twas_weights_results, meta_data_df, max_memo
   return(batches)
 }
 
+#' Compute genotype correlation 
+#' @export
+get_cormat <- function(X, intercepte = TRUE) {
+  X <- t(X)
+  # Center each variable
+  if (intercepte) {
+    X <- X - rowMeans(X)
+  }
+  # Standardize each variable
+  X <- X / sqrt(rowSums(X^2))
+  # Calculate correlations
+  cr <- tcrossprod(X)
+  return(cr)
+}
+
+# Function to filter a single credible set based on coverage and purity
+#' @importFrom susieR susie_get_cs
+#' @importFrom purrr map_lgl
+#' @export      
+get_filter_lbf_index <- function(susie_obj, coverage = 0.5, size_factor = 0.5) {
+  susie_obj$V <- NULL  # ensure no filtering by estimated prior
+
+  # Get CS list with coverage
+  cs_list <- susie_get_cs(susie_obj, coverage = coverage, dedup = FALSE)
+  
+  # Total number of variants
+  total_variants <- ncol(susie_obj$alpha)
+  
+  # Maximum allowed CS size to be considered 'concentrated'
+  max_size <- total_variants * coverage * size_factor
+  
+  # Identify which CSs are 'concentrated enough'
+  keep_idx <- map_lgl(cs_list$cs, ~ length(.x) < max_size)
+  
+  # Extract the CS indices that pass the filter
+  cs_index <- which(keep_idx) %>% names %>% gsub("L","", .) %>% as.numeric
+
+  # Return filtered lbf_variable rows (one per CS)
+  return(cs_index)
+
 #' Function to load LD reference data variants
 #' @export
 #' @noRd
