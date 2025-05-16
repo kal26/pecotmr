@@ -63,8 +63,20 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
   }
 
   # transform all inputs to dataframe
+  if (is.data.frame(target_data)) {
+     if (ncol(target_data) > 4 && all(c("chrom", "pos", "A2", "A1") %in% names(target_data))) {
+        # Extract variant columns and standardize
+        variant_cols <- c("chrom", "pos", "A2", "A1")
+        variant_df <- target_data %>% select(all_of(variant_cols))
+        other_cols <- target_data %>% select(-all_of(variant_cols))
+        target_data <- cbind(variant_id_to_df(variant_df), other_cols)
+     } else {
+        target_data <- variant_id_to_df(target_data)
+     }
+  } else {
+        target_data <- variant_id_to_df(target_data)
+  }
   ref_variants <- variant_id_to_df(ref_variants)
-  target_data <- variant_id_to_df(target_data)
   columns_to_remove <- c("chromosome", "position", "ref", "alt", "variant_id")
 
   # Check if any of the specified columns are present
