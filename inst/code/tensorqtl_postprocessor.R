@@ -314,8 +314,7 @@ calculate_filtered_variant_counts <- function(filename, params, gene_coords) {
   molecular_id_col <- params$molecular_id_col %||% "molecular_trait_object_id"
   message(sprintf("Counting per event variants in %s", basename(filename)))
   all_cols <- extract_column_names(filename, params$pvalue_pattern, params$qvalue_pattern)$all_columns
-  required_cols <- c(molecular_id_col, "chrom", "pos", params$af_col)
-
+  required_cols <- c(molecular_id_col, "chrom", "pos", params$af_col, params$start_distance_col, params$end_distance_col)
   col_indices <- sapply(required_cols, function(col) which(all_cols == col))
   if (any(sapply(col_indices, length) == 0)) {
     stop(sprintf("Required columns missing in file: %s", filename))
@@ -349,7 +348,9 @@ calculate_filtered_variant_counts <- function(filename, params, gene_coords) {
       qtl_data,
       params$cis_window,
       gene_coords,
-      molecular_id_col
+      molecular_id_col,
+      params$start_distance_col,
+      params$end_distance_col
     )
 
     message("Applying MAF and cis-window filters...")
@@ -547,7 +548,7 @@ prepare_local_qtl_data <- function(qtl_data, regional_data, params, should_filte
         filter(pmin(!!sym(params$af_col), 1 - !!sym(params$af_col)) > params$maf_cutoff)
     } else {
       # Original logic: apply both cis-window and MAF filtering
-      feature_positions <- calculate_feature_positions(qtl_data$data, params$cis_window, qtl_data$gene_coords, molecular_id_col)
+      feature_positions <- calculate_feature_positions(qtl_data$data, params$cis_window, qtl_data$gene_coords, molecular_id_col, params$start_distance_col, params$end_distance_col)
       filtered_data <- qtl_data$data %>%
         left_join(
           feature_positions %>% select(!!sym(molecular_id_col), cis_start, cis_end),
