@@ -74,7 +74,56 @@ find_common_prefix <- function(files) {
     }
   }
 
-  # Return the joined common parts
+  # If no common parts found, try alternative approach
+  # Look for common prefix before chromosome pattern
+  if (length(common_parts) == 0) {
+    # Try to find common prefix before "chr" pattern
+    chr_pattern <- "_chr\\d+|chr\\d+"
+    
+    # For each file, find position of chromosome pattern
+    chr_positions <- sapply(filenames, function(f) {
+      match_pos <- regexpr(chr_pattern, f)
+      if (match_pos > 0) {
+        return(match_pos - 1)  # Position just before the match
+      } else {
+        return(nchar(f))  # If no chr pattern, use full length
+      }
+    })
+    
+    # If all files have chr pattern at roughly same position
+    if (all(chr_positions > 0)) {
+      min_pos <- min(chr_positions)
+      # Extract common prefix up to the chromosome part
+      prefixes <- sapply(filenames, function(f) substr(f, 1, min_pos))
+      
+      # Find the longest common prefix among these
+      if (length(unique(prefixes)) == 1) {
+        # All prefixes are the same
+        common_prefix <- prefixes[1]
+      } else {
+        # Find character-by-character common prefix
+        min_len <- min(nchar(prefixes))
+        common_prefix <- ""
+        for (pos in 1:min_len) {
+          chars <- sapply(prefixes, function(p) substr(p, pos, pos))
+          if (length(unique(chars)) == 1) {
+            common_prefix <- paste0(common_prefix, chars[1])
+          } else {
+            break
+          }
+        }
+      }
+      
+      # Remove trailing underscores or dots
+      common_prefix <- sub("[._]+$", "", common_prefix)
+      
+      if (nchar(common_prefix) > 0) {
+        return(common_prefix)
+      }
+    }
+  }
+
+  # Return the joined common parts (original logic)
   if (length(common_parts) == 0) {
     return("")
   }
@@ -126,6 +175,7 @@ read_and_combine_files <- function(files, ...) {
 # ===================================
 load_regional_data <- function(params) {
   setwd(params$workdir)
+  molecular_id_col <- params$molecular_id_col %||% "molecular_trait_object_id"
 
   # Load permutation-based regional files
   regional_files <- vector()
@@ -145,7 +195,7 @@ load_regional_data <- function(params) {
     # eigenMT test as number of effective variants
     if (has_emt_n_var) {
       data <- data %>%
-        rename_with(~"molecular_trait_object_id", matches("phenotype_id"))
+        rename_with(~molecular_id_col, matches("phenotype_id"))
       n_var_col <- "tests_emt"
       has_permutation <- FALSE
       message("Found 'tests_emt' column in regional data, converting to n_variants")
@@ -195,7 +245,7 @@ load_gene_coordinates <- function(params) {
 }
 
 # Calculate feature positions for cis-window filtering
-calculate_feature_positions <- function(qtl_data, cis_window, gene_coords, start_distance_col = "start_distance", end_distance_col = "end_distance") {
+calculate_feature_positions <- function(qtl_data, cis_window, gene_coords, molecular_id_col = "molecular_trait_object_id", start_distance_col = "start_distance", end_distance_col = "end_distance") {
   # Extract ENSEMBL IDs from molecular_trait_object_id
   extract_ensembl <- function(ids) {
     pattern <- "^.*?(ENSG\\d+).*$"
@@ -208,10 +258,10 @@ calculate_feature_positions <- function(qtl_data, cis_window, gene_coords, start
   }
 
   unique_traits <- qtl_data %>%
-    select(molecular_trait_object_id, chrom) %>%
+    select(!!sym(molecular_id_col), chrom) %>%
     distinct() %>%
     mutate(
-      ensembl_id = extract_ensembl(molecular_trait_object_id)
+      ensembl_id = extract_ensembl(.data[[molecular_id_col]])
     )
 
   # Join with lookup to get TSS/TES positions
@@ -225,17 +275,18 @@ calculate_feature_positions <- function(qtl_data, cis_window, gene_coords, start
   # For unmapped genes, calculate approximate positions from variant data
   if (sum(is.na(merged_traits$gene_start)) > 0) {
     fallback_positions <- qtl_data %>%
-      filter(molecular_trait_object_id %in%
-        merged_traits$molecular_trait_object_id[is.na(merged_traits$gene_start)]) %>%
-      group_by(molecular_trait_object_id, chrom) %>%
+      filter(!!sym(molecular_id_col) %in%
+        merged_traits[[molecular_id_col]][is.na(merged_traits$gene_start)]) %>%
+      group_by(!!sym(molecular_id_col), chrom) %>%
       summarize(
         approx_tss = first(pos) - first(!!sym(start_distance_col)),
         approx_tes = first(pos) - first(!!sym(end_distance_col)),
         .groups = "drop"
       )
 
+    by_cols <- setNames(c(molecular_id_col, "chrom"), c(molecular_id_col, "chrom"))
     merged_traits <- merged_traits %>%
-      left_join(fallback_positions, by = c("molecular_trait_object_id", "chrom")) %>%
+      left_join(fallback_positions, by = by_cols) %>%
       mutate(
         feature_tss = coalesce(gene_start, approx_tss),
         feature_tes = coalesce(gene_end, approx_tes)
@@ -254,15 +305,16 @@ calculate_feature_positions <- function(qtl_data, cis_window, gene_coords, start
       cis_start = feature_tss - cis_window,
       cis_end = feature_tes + cis_window
     ) %>%
-    select(molecular_trait_object_id, chrom, feature_tss, feature_tes, cis_start, cis_end)
+    select(!!sym(molecular_id_col), chrom, feature_tss, feature_tes, cis_start, cis_end)
 
   return(feature_positions)
 }
 
 calculate_filtered_variant_counts <- function(filename, params, gene_coords) {
+  molecular_id_col <- params$molecular_id_col %||% "molecular_trait_object_id"
   message(sprintf("Counting per event variants in %s", basename(filename)))
   all_cols <- extract_column_names(filename, params$pvalue_pattern, params$qvalue_pattern)$all_columns
-  required_cols <- c("molecular_trait_object_id", "chrom", "pos", params$af_col)
+  required_cols <- c(molecular_id_col, "chrom", "pos", params$af_col)
 
   col_indices <- sapply(required_cols, function(col) which(all_cols == col))
   if (any(sapply(col_indices, length) == 0)) {
@@ -276,41 +328,54 @@ calculate_filtered_variant_counts <- function(filename, params, gene_coords) {
   message("Extracting minimal columns from file...")
   qtl_data <- data.table::fread(cmd = cmd) %>% mutate(chrom = standardize_chrom(chrom))
   trait_chrom <- qtl_data %>%
-    group_by(molecular_trait_object_id) %>%
+    group_by(!!sym(molecular_id_col)) %>%
     summarize(chrom = first(chrom))
   original_counts <- qtl_data %>%
-    group_by(molecular_trait_object_id) %>%
+    group_by(!!sym(molecular_id_col)) %>%
     summarize(n_variants_original = n())
-  message("Calculating feature positions and cis windows...")
-  feature_positions <- calculate_feature_positions(
-    qtl_data,
-    params$cis_window,
-    gene_coords
-  )
 
-  message("Applying MAF and cis-window filters...")
-  filtered_data <- qtl_data %>%
-    left_join(
-      feature_positions %>% select(molecular_trait_object_id, cis_start, cis_end),
-      by = "molecular_trait_object_id"
-    ) %>%
-    filter(
-      pmin(!!sym(params$af_col), 1 - !!sym(params$af_col)) > params$maf_cutoff,
-      pos >= cis_start & pos <= cis_end
+  # NEW: Check if cis_window is 0 to skip cis-window filtering
+  if (params$cis_window == 0) {
+    message("cis_window is 0, skipping cis-window filtering, only applying MAF filter...")
+    
+    # Apply only MAF filtering
+    filtered_data <- qtl_data %>%
+      filter(pmin(!!sym(params$af_col), 1 - !!sym(params$af_col)) > params$maf_cutoff)
+      
+  } else {
+    # Original logic: apply both MAF and cis-window filtering
+    message("Calculating feature positions and cis windows...")
+    feature_positions <- calculate_feature_positions(
+      qtl_data,
+      params$cis_window,
+      gene_coords,
+      molecular_id_col
     )
+
+    message("Applying MAF and cis-window filters...")
+    filtered_data <- qtl_data %>%
+      left_join(
+        feature_positions %>% select(!!sym(molecular_id_col), cis_start, cis_end),
+        by = molecular_id_col
+      ) %>%
+      filter(
+        pmin(!!sym(params$af_col), 1 - !!sym(params$af_col)) > params$maf_cutoff,
+        pos >= cis_start & pos <= cis_end
+      )
+  }
 
   # Count filtered variants
   filtered_counts <- filtered_data %>%
-    group_by(molecular_trait_object_id) %>%
+    group_by(!!sym(molecular_id_col)) %>%
     summarize(n_variants_filtered = n())
 
   # Combine results
   results <- trait_chrom %>%
-    left_join(original_counts, by = "molecular_trait_object_id") %>%
-    left_join(filtered_counts, by = "molecular_trait_object_id") %>%
+    left_join(original_counts, by = molecular_id_col) %>%
+    left_join(filtered_counts, by = molecular_id_col) %>%
     mutate(n_variants_filtered = ifelse(is.na(n_variants_filtered), 0, n_variants_filtered)) %>%
     rename(n_variants = n_variants_original) %>%
-    select(chrom, molecular_trait_object_id, n_variants, n_variants_filtered)
+    select(chrom, !!sym(molecular_id_col), n_variants, n_variants_filtered)
 
   message(sprintf("Processed %d traits in %s", nrow(results), basename(filename)))
   return(results)
@@ -335,12 +400,25 @@ load_n_variants_data <- function(params, gene_coords) {
     base_name <- sub(cleaned_pattern, "", qtl_files[i])
     n_variants_suffix <- sub("\\*", "", params$n_variants_suffix)
     n_variants_suffix <- sub("\\$$", "", n_variants_suffix)
-    n_variants_suffix <- sprintf(
-      "maf_%s_window_%s_%s",
-      params$maf_cutoff,
-      format(params$cis_window, scientific = FALSE),
-      n_variants_suffix
-    )
+    
+    # MODIFIED: Handle cis_window = 0 case differently in filename generation
+    if (params$cis_window == 0) {
+      # When cis_window is 0, don't include window information in filename
+      n_variants_suffix <- sprintf(
+        "maf_%s_%s",
+        params$maf_cutoff,
+        n_variants_suffix
+      )
+    } else {
+      # Original logic: include window information
+      n_variants_suffix <- sprintf(
+        "maf_%s_window_%s_%s",
+        params$maf_cutoff,
+        format(params$cis_window, scientific = FALSE),
+        n_variants_suffix
+      )
+    }
+    
     n_variants_files[i] <- paste0(base_name, ".", n_variants_suffix)
   }
 
@@ -371,6 +449,7 @@ load_n_variants_data <- function(params, gene_coords) {
 
 load_qtl_data <- function(params, load_n_variants = FALSE) {
   setwd(params$workdir)
+  message('workdir is ', getwd())
   gene_coords <- load_gene_coordinates(params)
 
   files <- list.files(pattern = params$qtl_pattern, full.names = TRUE)
@@ -417,7 +496,7 @@ load_qtl_data <- function(params, load_n_variants = FALSE) {
   ))
 }
 
-annotate_qtl_with_regional <- function(qtl_data, regional_data, n_variants_data = NULL, use_filtered = FALSE) {
+annotate_qtl_with_regional <- function(qtl_data, regional_data, n_variants_data = NULL, use_filtered = FALSE, molecular_id_col = "molecular_trait_object_id") {
   if (nrow(qtl_data) == 0) {
     # Return empty dataframe with n_variants column
     return(qtl_data %>% mutate(n_variants = integer(0)))
@@ -426,17 +505,17 @@ annotate_qtl_with_regional <- function(qtl_data, regional_data, n_variants_data 
   # First priority: If use_filtered is TRUE and n_variants_filtered exists in n_variants_data
   if (use_filtered && !is.null(n_variants_data) && "n_variants_filtered" %in% names(n_variants_data)) {
     n_variants_info <- n_variants_data %>%
-      select(molecular_trait_object_id, n_variants = n_variants_filtered) %>%
+      select(!!sym(molecular_id_col), n_variants = n_variants_filtered) %>%
       distinct()
     # Second priority: Use regional_data$regional_summary if available
   } else if (!is.null(regional_data$regional_summary)) {
     n_variants_info <- regional_data$regional_summary %>%
-      select(molecular_trait_object_id, n_variants = !!sym(regional_data$n_var_col)) %>%
+      select(!!sym(molecular_id_col), n_variants = !!sym(regional_data$n_var_col)) %>%
       distinct()
     # Third priority: Fallback to n_variants in n_variants_data
   } else if (!is.null(n_variants_data)) {
     n_variants_info <- n_variants_data %>%
-      select(molecular_trait_object_id, n_variants = n_variants) %>%
+      select(!!sym(molecular_id_col), n_variants = n_variants) %>%
       distinct()
     # No n_variants information available
   } else {
@@ -449,7 +528,7 @@ annotate_qtl_with_regional <- function(qtl_data, regional_data, n_variants_data 
       select(-n_variants)
   }
   annotated_data <- qtl_data %>%
-    left_join(n_variants_info, by = "molecular_trait_object_id")
+    left_join(n_variants_info, by = molecular_id_col)
 
   return(annotated_data)
 }
@@ -457,16 +536,26 @@ annotate_qtl_with_regional <- function(qtl_data, regional_data, n_variants_data 
 prepare_local_qtl_data <- function(qtl_data, regional_data, params, should_filter = TRUE) {
   original_data <- NULL
   filtered_data <- NULL
+  molecular_id_col <- params$molecular_id_col %||% "molecular_trait_object_id"
 
   if (should_filter) {
-    feature_positions <- calculate_feature_positions(qtl_data$data, params$cis_window, qtl_data$gene_coords)
-    filtered_data <- qtl_data$data %>%
-      left_join(
-        feature_positions %>% select(molecular_trait_object_id, cis_start, cis_end),
-        by = "molecular_trait_object_id"
-      ) %>%
-      filter(pmin(!!sym(params$af_col), 1 - !!sym(params$af_col)) > params$maf_cutoff) %>%
-      filter(pos >= cis_start & pos <= cis_end)
+    # NEW: Check if cis_window is 0 to skip cis-window filtering
+    if (params$cis_window == 0) {
+      message("cis_window is 0, applying only MAF filtering...")
+      # Apply only MAF filtering when cis_window is 0
+      filtered_data <- qtl_data$data %>%
+        filter(pmin(!!sym(params$af_col), 1 - !!sym(params$af_col)) > params$maf_cutoff)
+    } else {
+      # Original logic: apply both cis-window and MAF filtering
+      feature_positions <- calculate_feature_positions(qtl_data$data, params$cis_window, qtl_data$gene_coords, molecular_id_col)
+      filtered_data <- qtl_data$data %>%
+        left_join(
+          feature_positions %>% select(!!sym(molecular_id_col), cis_start, cis_end),
+          by = molecular_id_col
+        ) %>%
+        filter(pmin(!!sym(params$af_col), 1 - !!sym(params$af_col)) > params$maf_cutoff) %>%
+        filter(pos >= cis_start & pos <= cis_end)
+    }
 
     # Check if filtered data has rows
     if (nrow(filtered_data) == 0) {
@@ -477,15 +566,15 @@ prepare_local_qtl_data <- function(qtl_data, regional_data, params, should_filte
         filtered_data = filtered_data %>% mutate(n_variants = integer(0))
       ))
     }
-    filtered_data <- annotate_qtl_with_regional(filtered_data, regional_data, n_variants_data = qtl_data$n_variants_data, use_filtered = TRUE)
+    filtered_data <- annotate_qtl_with_regional(filtered_data, regional_data, n_variants_data = qtl_data$n_variants_data, use_filtered = TRUE, molecular_id_col = molecular_id_col)
   } else {
     # Annotate data with n_variants
-    original_data <- annotate_qtl_with_regional(qtl_data$data, regional_data, n_variants_data = qtl_data$n_variants_data, use_filtered = FALSE)
+    original_data <- annotate_qtl_with_regional(qtl_data$data, regional_data, n_variants_data = qtl_data$n_variants_data, use_filtered = FALSE, molecular_id_col = molecular_id_col)
   }
 
   if (!is.null(original_data)) {
     avg_variants <- original_data %>%
-      group_by(molecular_trait_object_id) %>%
+      group_by(!!sym(molecular_id_col)) %>%
       slice(1) %>%
       ungroup() %>%
       summarize(avg = mean(n_variants)) %>%
@@ -498,7 +587,7 @@ prepare_local_qtl_data <- function(qtl_data, regional_data, params, should_filte
 
   if (!is.null(filtered_data)) {
     avg_variants <- filtered_data %>%
-      group_by(molecular_trait_object_id) %>%
+      group_by(!!sym(molecular_id_col)) %>%
       slice(1) %>%
       ungroup() %>%
       summarize(avg = mean(n_variants)) %>%
@@ -520,6 +609,7 @@ prepare_local_qtl_data <- function(qtl_data, regional_data, params, should_filte
 ############################################
 
 permutation_local_adjustment <- function(data, params) {
+  molecular_id_col <- params$molecular_id_col %||% "molecular_trait_object_id"
   message("Loading permutation-based local adjustment")
   reg_data <- data$regional_data$regional_summary
   if (!("p_perm" %in% colnames(reg_data)) && !("p_beta" %in% colnames(reg_data))) {
@@ -527,7 +617,7 @@ permutation_local_adjustment <- function(data, params) {
   }
 
   event_level_pvalues <- reg_data %>%
-    select(molecular_trait_object_id) %>%
+    select(!!sym(molecular_id_col)) %>%
     distinct()
   for (col in c("p_perm", "p_beta")) {
     if (col %in% colnames(reg_data)) {
@@ -548,6 +638,7 @@ permutation_local_adjustment <- function(data, params) {
 }
 
 bonferroni_local_adjustment <- function(data, params, should_filter = FALSE) {
+  molecular_id_col <- params$molecular_id_col %||% "molecular_trait_object_id"
   should_filter <- (params$maf_cutoff > 0 || params$cis_window > 0) && should_filter
   message(sprintf(
     "Applying Bonferroni local adjustment (filter applied: %s)...",
@@ -567,8 +658,7 @@ bonferroni_local_adjustment <- function(data, params, should_filter = FALSE) {
       message("No data remains after filtering. Returning empty result.")
       # Create empty event level p-values
       event_level_pvalues <- data.frame(
-        molecular_trait_object_id = character(0),
-        p_bonferroni_min = numeric(0)
+        setNames(list(character(0), numeric(0)), c(molecular_id_col, "p_bonferroni_min"))
       )
 
       result <- data
@@ -591,7 +681,7 @@ bonferroni_local_adjustment <- function(data, params, should_filter = FALSE) {
 
   # Calculate gene-level p-values (min p-value per gene)
   event_level_pvalues <- adjusted_qtl_data %>%
-    group_by(molecular_trait_object_id) %>%
+    group_by(!!sym(molecular_id_col)) %>%
     summarize(p_bonferroni_min = min(p_bonferroni_adj)) %>%
     ungroup()
 
@@ -610,6 +700,7 @@ bonferroni_local_adjustment <- function(data, params, should_filter = FALSE) {
 # Global Adjustment (Step 2)
 ############################################
 perform_global_adjustment <- function(data, params) {
+  molecular_id_col <- params$molecular_id_col %||% "molecular_trait_object_id"
   message("Applying both FDR and qvalue global adjustments...")
 
   if (is.null(data$event_level_pvalues) || is.null(data$local_adjustment_info)) {
@@ -639,7 +730,7 @@ perform_global_adjustment <- function(data, params) {
   }
 
   p_columns <- data$local_adjustment_info$p_value_columns
-  event_adjusted <- data.frame(molecular_trait_object_id = data$event_level_pvalues$molecular_trait_object_id)
+  event_adjusted <- data.frame(setNames(list(data$event_level_pvalues[[molecular_id_col]]), molecular_id_col))
   fdr_columns <- c()
   q_columns <- c()
 
@@ -677,7 +768,7 @@ perform_global_adjustment <- function(data, params) {
   if (!is.null(result$regional_data$regional_summary)) {
     # If regional_summary exists, update it with the adjustments
     result$regional_data$regional_summary <- result$regional_data$regional_summary %>%
-      left_join(event_adjusted, by = "molecular_trait_object_id", suffix = c("", ".new")) %>%
+      left_join(event_adjusted, by = molecular_id_col, suffix = c("", ".new")) %>%
       mutate(across(matches("\\.new$"),
         ~ coalesce(., get(sub("\\.new$", "", cur_column()))),
         .names = "{.col}"
@@ -704,6 +795,7 @@ perform_global_adjustment <- function(data, params) {
 ############################################
 
 identify_permutation_snps <- function(data, params) {
+  molecular_id_col <- params$molecular_id_col %||% "molecular_trait_object_id"
   message("Identifying significant SNPs using permutation thresholds...")
 
   # Check if permutation data (with beta parameters) is available
@@ -752,8 +844,8 @@ identify_permutation_snps <- function(data, params) {
     # Identify significant SNPs using permutation threshold
     significant_pairs <- data$qtl_data$data %>%
       left_join(
-        updated_regional_data %>% select(molecular_trait_object_id, p_nominal_threshold),
-        by = "molecular_trait_object_id"
+        updated_regional_data %>% select(!!sym(molecular_id_col), p_nominal_threshold),
+        by = molecular_id_col
       ) %>%
       filter(!!sym(data$qtl_data$column_info$p_col) < p_nominal_threshold)
 
@@ -830,6 +922,7 @@ identify_bonferroni_fdr_snps <- function(data, params) {
 }
 
 identify_qvalue_snps <- function(data, params, base_data = NULL) {
+  molecular_id_col <- params$molecular_id_col %||% "molecular_trait_object_id"
   message("Identifying significant SNPs using q-value per event method...")
   if (is.null(base_data)) base_data <- data
   base_data$significant_qtls <- list()
@@ -851,14 +944,14 @@ identify_qvalue_snps <- function(data, params, base_data = NULL) {
   # Identify significant events
   significant_events <- regional_data %>%
     filter(!!sym(q_col) < params$fdr_threshold) %>%
-    pull(molecular_trait_object_id)
+    pull(!!sym(molecular_id_col))
   if (length(significant_events) == 0) {
     message(sprintf("No significant events found using %s threshold %g", q_col, params$fdr_threshold))
     base_data$significant_qtls[[result_name]] <- data.frame()
     return(base_data)
   }
   snp_data <- data$qtl_data$data %>%
-    filter(molecular_trait_object_id %in% significant_events)
+    filter(!!sym(molecular_id_col) %in% significant_events)
 
   # Handle empty snp_data
   if (nrow(snp_data) == 0) {
@@ -877,7 +970,7 @@ identify_qvalue_snps <- function(data, params, base_data = NULL) {
     p_col <- data$qtl_data$column_info$p_col
     message(sprintf("Computing q-values for each event's SNPs using p-value from '%s'...", p_col))
     significant_snps <- snp_data %>%
-      group_by(molecular_trait_object_id) %>%
+      group_by(!!sym(molecular_id_col)) %>%
       mutate(!!sym(q_value_col) := safe_qvalue(!!sym(p_col))$qvalues) %>%
       filter(!!sym(q_value_col) < params$fdr_threshold) %>%
       ungroup()
@@ -899,6 +992,11 @@ identify_qvalue_snps <- function(data, params, base_data = NULL) {
 # Main Application Controller
 ############################################
 hierarchical_multiple_testing_correction <- function(params) {
+  # Set default molecular_id_col if not provided
+  if (is.null(params$molecular_id_col)) {
+    params$molecular_id_col <- "molecular_trait_object_id"
+  }
+  
   # Step 0: Load all data upfront
   data <- list()
   data$regional_data <- load_regional_data(params)
