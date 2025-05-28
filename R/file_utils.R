@@ -1049,6 +1049,7 @@ get_filter_lbf_index <- function(susie_obj, coverage = 0.5, size_factor = 0.5) {
 
   # Return filtered lbf_variable rows (one per CS)
   return(cs_index)
+}
 
 #' Function to load LD reference data variants
 #' @export
