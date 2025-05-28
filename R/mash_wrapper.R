@@ -962,11 +962,12 @@ load_multicontext_sumstats <- function(dat_list, signal_df, cond, region, extrac
   # Initialize output list
   out <- list()
   trait_names <- names(dat_list[[1]])
-  if (cond == "strong" && region %in% signal_df$gene_ID){
+    if (cond == "strong" && region %in% signal_df$gene_ID){
   events <- signal_df %>% filter(gene_ID == region) %>% pull(event_ID) %>% unique()                    
   for (j in 1:length(events)){                           
         ref_df_filtered <- signal_df %>% filter(gene_ID == region, event_ID == events[j]) %>% 
             filter(!str_detect(context_classify, "NE"))
+        if(dim(ref_df_filtered)[1] == 0) next
         ## generate the reference panel for allele flipping
         ref_panel <- parse_variant_id(ref_df_filtered$variant_ID%>%unique())
         
@@ -977,7 +978,7 @@ load_multicontext_sumstats <- function(dat_list, signal_df, cond, region, extrac
 
         # Flatten the nested list
         for (extract_inf in extract_infs) {
-        extracted_matrix <- merge_matrices(dat_list[[extract_inf]], value_column = extract_inf, ref_panel = ref_panel, id_column = "variants", remove_any_missing = FALSE)
+        extracted_matrix <- merge_sumstats_matrices(dat_list[[extract_inf]], value_column = extract_inf, ref_panel = ref_panel, id_column = "variants", remove_any_missing = FALSE)
         out[[extract_inf]] <- extracted_matrix
         # Set variant order on first iteration
         if (is.null(var_idx)&& is.null(variants)) {
@@ -1013,21 +1014,20 @@ load_multicontext_sumstats <- function(dat_list, signal_df, cond, region, extrac
               added_df <- data.frame()
 
                 # Ensure the column name of the numeric column
-
-               if (any(grepl("sQTL", df$context_classify))) {
-                  if (any(grepl("sQTL", ref_df_filtered$context_classify))) {
+                if (any(grepl("sQTL|pQTL|gpQTL", df$context_classify))) {
+                  if (any(grepl("sQTL|pQTL|gpQTL", ref_df_filtered$context_classify))) {
     
                     # Extract sQTL contexts to loop over
-                    sQTL_specific_contexts <- unique(str_subset(ref_df_filtered$context_classify, "sQTL"))
+                    xQTL_specific_contexts <- unique(str_subset(ref_df_filtered$context_classify, "sQTL|pQTL|gpQTL"))
     
-                    for (context in sQTL_specific_contexts) {
+                    for (cont in xQTL_specific_contexts) {
                           event_IDs_extracted <- ref_df_filtered %>%
-                                    filter(context_classify == context) %>%
+                                    filter(context_classify == cont) %>%
                                     pull(event_IDs)
       
                     # Filter matching rows in df
                           context_rows <- df %>%
-                                filter(context_classify == context, context %in% event_IDs_extracted)
+                                filter(context_classify == cont, str_detect(context, paste(event_IDs_extracted, collapse = "|")))
       
                       if (nrow(context_rows) > 0) {
                         # Get the row with median absolute value
@@ -1037,14 +1037,13 @@ load_multicontext_sumstats <- function(dat_list, signal_df, cond, region, extrac
                         selected_df <- context_rows[median_idx, , drop = FALSE]
         
                         added_df <- bind_rows(added_df, selected_df)
-                        df <- df %>% filter(context_classify != context)
+                        df <- df %>% filter(context_classify !=cont)
                       }
                     }
-    
                     # Combine updated sQTL-specific rows back into df
                     df <- bind_rows(df, added_df)
                   }
-                }
+                }               
                 sumstats_df[[extract_inf]] <- df %>%
                   filter(!str_detect(context_classify, "NE") & context_classify != 'NA')%>%
                   group_by(context_classify) %>%
@@ -1083,7 +1082,7 @@ load_multicontext_sumstats <- function(dat_list, signal_df, cond, region, extrac
     event_ID_extracted <- list()
     for (extract_inf in extract_infs){
          # Flatten the nested list
-         extracted_matrix <- merge_matrices(dat_list[[extract_inf]], value_column = extract_inf, ref_panel = ref_panel, id_column = "variants", remove_any_missing = FALSE)
+         extracted_matrix <- merge_sumstats_matrices(dat_list[[extract_inf]], value_column = extract_inf, ref_panel = ref_panel, id_column = "variants", remove_any_missing = FALSE)
          out[[extract_inf]] <- extracted_matrix
           # Set variant order on first iteration
           if (is.null(var_idx)&& is.null(variants)) {
@@ -1122,7 +1121,7 @@ load_multicontext_sumstats <- function(dat_list, signal_df, cond, region, extrac
                         group_by(context_classify) %>%
                         filter(
                             !is.na(.data[[numeric_col]]),
-                            if (any(str_detect(context_classify, "sQTL|pQTL"))) {
+                            if (any(str_detect(context_classify, "sQTL|pQTL|gpQTL"))) {
                               abs(.data[[numeric_col]]) < 2
                             } else {
                               TRUE
