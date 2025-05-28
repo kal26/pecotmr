@@ -165,7 +165,7 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
           )
           weights_matrix_subset <- as.matrix(weights_matrix_qced$target_data_qced[, !colnames(weights_matrix_qced$target_data_qced) %in% c(
             "chrom",
-            "pos", "A2", "A1", "variant_id"
+            "pos", "A2", "A1", "variant_id", "variants_id_original"
           ), drop = FALSE])
           rownames(weights_matrix_subset) <- weights_matrix_qced$target_data_qced$variant_id # weight variant names are flipped/corrected
 
@@ -259,6 +259,7 @@ harmonize_gwas <- function(gwas_file, query_region, ld_variants, col_to_flip=NUL
     if (!any(gwas_data_sumstats$pos %in% gsub("\\:.*$", "", sub("^.*?\\:", "", ld_variants)))) return(NULL)
     gwas_allele_flip <- allele_qc(gwas_data_sumstats, ld_variants, col_to_flip=col_to_flip, match_min_prop = match_min_prop)
     gwas_data_sumstats <- gwas_allele_flip$target_data_qced # post-qc gwas data that is flipped and corrected - gwas study level
+    gwas_data_sumstats <- gwas_data_sumstats[!is.na(gwas_data_sumstats$z) & !is.infinite(gwas_data_sumstats$z), ]
     return(gwas_data_sumstats)
 }
 
@@ -464,9 +465,9 @@ twas_pipeline <- function(twas_weights_data,
     # Nested lapply for contexts and gwas studies
     twas_gene_results <- lapply(contexts, function(context) {
       study_results <- lapply(gwas_studies, function(study) {
-        twas_variants <- intersect(
-          rownames(twas_data_qced[[weight_db]][["weights_qced"]][[context]][[study]][["weights"]]),
-          twas_data_qced[[weight_db]][["variant_names"]][[context]][[study]]
+        twas_variants <- Reduce(intersect, list(rownames(twas_data_qced[[weight_db]][["weights_qced"]][[context]][[study]][["weights"]]), 
+          twas_data_qced[[weight_db]][["variant_names"]][[context]][[study]],
+          twas_data_qced[[weight_db]][["gwas_qced"]][[study]]$variant_id)
         )
         if (length(twas_variants) == 0) {
           return(list(twas_rs_df = data.frame(), mr_rs_df = data.frame()))
