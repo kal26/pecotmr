@@ -925,7 +925,8 @@ merge_sumstats_matrices <- function(matrix_list, value_column, ref_panel = NULL,
     # Remove any NULL results from errors
     df_list <- df_list[!sapply(df_list, is.null)]
     if (length(df_list) == 0) {
-      stop("No valid datasets after processing")
+        message("No valid datasets after processing")
+        return(NULL)
     }
 
     # Iteratively merge the data frames
@@ -979,6 +980,7 @@ load_multicontext_sumstats <- function(dat_list, signal_df, cond, region, extrac
         # Flatten the nested list
         for (extract_inf in extract_infs) {
         extracted_matrix <- merge_sumstats_matrices(dat_list[[extract_inf]], value_column = extract_inf, ref_panel = ref_panel, id_column = "variants", remove_any_missing = FALSE)
+        if(is.null(extracted_matrix)||dim(extracted_matrix)[1]==0) return(result_list_format)
         out[[extract_inf]] <- extracted_matrix
         # Set variant order on first iteration
         if (is.null(var_idx)&& is.null(variants)) {
@@ -1083,6 +1085,7 @@ load_multicontext_sumstats <- function(dat_list, signal_df, cond, region, extrac
     for (extract_inf in extract_infs){
          # Flatten the nested list
          extracted_matrix <- merge_sumstats_matrices(dat_list[[extract_inf]], value_column = extract_inf, ref_panel = ref_panel, id_column = "variants", remove_any_missing = FALSE)
+          if (is.null(extracted_matrix)||dim(extracted_matrix)[1]==0) return(result_list_format)
          out[[extract_inf]] <- extracted_matrix
           # Set variant order on first iteration
           if (is.null(var_idx)&& is.null(variants)) {
