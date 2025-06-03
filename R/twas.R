@@ -251,7 +251,8 @@ harmonize_gwas <- function(gwas_file, query_region, ld_variants, col_to_flip=NUL
     if(is.null(gwas_file)| is.na(gwas_file)) stop("No GWAS file path provided. ")
     gwas_data_sumstats <- as.data.frame(tabix_region(gwas_file, query_region)) # extension for yml file for column name mapping
     if (nrow(gwas_data_sumstats) == 0) {
-        warning(paste0("No GWAS summary statistics found for the region of ", query_region, " in ", study, ". "))
+        if (length(names(gwas_file))==0) names(gwas_file) <- gwas_file
+        warning(paste0("No GWAS summary statistics found for the region of ", query_region, " in ", names(gwas_file), ". "))
         return(NULL)
     }
     if (colnames(gwas_data_sumstats)[1] == "#chrom") colnames(gwas_data_sumstats)[1] <- "chrom" # colname update for tabix
