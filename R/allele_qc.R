@@ -154,7 +154,7 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
     dups <- vec_duplicate_detect(result[, c("chrom", "pos", "variants_id_qced")])
     if (any(dups)) {
       result <- result[!dups, , drop = FALSE]
-      Warning("Unexpected duplicates were removed.")
+      warning("Unexpected duplicates were removed.")
     }
   }
     
