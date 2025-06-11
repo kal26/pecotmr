@@ -104,6 +104,11 @@ trim_ctwas_variants <- function(region_data, twas_weight_cutoff = 1e-5, cs_min_c
         region_data$weights[[group]][[study]]$n_wgt <- nrow(region_data$weights[[group]][[study]]$wgt)
       }
       region_data$weights[[group]] <- Filter(Negate(is.null), region_data$weights[[group]])
+      context_range <- as.integer(sapply(rownames(region_data$weights[[group]][[study]]$wgt), function(variant) strsplit(variant, "\\:")[[1]][2]))
+      if(twas_weight_cutoff!=0 | cs_min_cor!=0 | min_pip_cutoff!=0 | max_num_variants!=Inf){
+        region_data$weights[[group]][[study]][["p0"]] = min(context_range)# update min max position
+        region_data$weights[[group]][[study]][["p1"]] = max(context_range)
+      }
     }
     return(region_data$weights[[group]])
   }), names(region_data$weights))
