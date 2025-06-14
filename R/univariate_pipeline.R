@@ -200,11 +200,16 @@ rss_analysis_pipeline <- function(
   if (nrow(sumstats)==0){
       return(list(rss_data_analyzed = sumstats))
   }
+
   # Preprocess the input data
   preprocess_results <- rss_basic_qc(sumstats, LD_data, skip_region = skip_region, remove_indels = remove_indels)
   sumstats <- preprocess_results$sumstats
   LD_mat <- preprocess_results$LD_mat
-
+  # Check if no variants in preprocess_results
+  if (nrow(sumstats)==0){
+      message("No variants left after preprocessing. Returning empty results.")
+    return(list(rss_data_analyzed = sumstats))
+  }
   if (pip_cutoff_to_skip != 0) {
     if (pip_cutoff_to_skip < 0) {
       # automatically determine the cutoff to use
