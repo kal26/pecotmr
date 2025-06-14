@@ -83,10 +83,13 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
   if (any(columns_to_remove %in% colnames(target_data))) {
     target_data <- select(target_data, -any_of(columns_to_remove))
   }
-
-  match_result <- merge(target_data, ref_variants, by = c("chrom", "pos"), all = FALSE, suffixes = c(".target", ".ref")) %>%
+  match_result <- merge(target_data, ref_variants, by = c("chrom", "pos"), all = FALSE, suffixes = c(".target", ".ref")) %>% as.data.frame()
+  if (nrow(match_result) == 0) {
+    warning("No matching variants found between target data and reference variants.") 
+    return(list(target_data_qced = match_result, qc_summary = match_result))
+  }
     # match target & ref by chrom and position
-    as.data.frame() %>%
+  match_result = match_result %>%
     mutate(variants_id_original = paste(chrom, pos, A2.target, A1.target, sep = ":")) %>%
     mutate(variants_id_qced = paste(chrom, pos, A2.ref, A1.ref, sep = ":")) %>%
     # filter out totally same rows.
