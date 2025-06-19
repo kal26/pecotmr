@@ -70,7 +70,11 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
         variant_df <- target_data %>% select(all_of(variant_cols))
         other_cols <- target_data %>% select(-all_of(variant_cols))
         target_data <- cbind(variant_id_to_df(variant_df), other_cols)
+        print("head(variant_df)")
+        print(head(variant_df))
      } else {
+        print("head(variant_data)")
+        print(head(target_data))
         target_data <- variant_id_to_df(target_data)
      }
   } else {
