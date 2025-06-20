@@ -799,8 +799,6 @@ load_twas_weights <- function(weight_db_files, conditions = NULL,
 load_rss_data <- function(sumstat_path, column_file_path, n_sample = 0, n_case = 0, n_control = 0, region = NULL,
                           extract_region_name = NULL, region_name_col = NULL, comment_string = "#") {
   # Read and preprocess column mapping
-  print("comment_stringin load_rss")
-  print(comment_string)
   if (is.null(comment_string)) {
     column_data <- read.table(column_file_path,
       header = FALSE, sep = ":",
@@ -816,8 +814,6 @@ load_rss_data <- function(sumstat_path, column_file_path, n_sample = 0, n_case =
     ) %>%
       rename(standard = V1, original = V2)
   }
-  print("column_data")
-  print(head(column_data))
   # Initialize sumstats variable
   sumstats <- NULL
   var_y <- NULL

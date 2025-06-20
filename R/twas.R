@@ -154,8 +154,6 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file,
                                               LD_list$combined_LD_variants, c("beta", "z"),   
                                               match_min_prop = 0, column_file_path = column_file_path, comment_string = comment_string)
         if(is.null(gwas_data_sumstats)) next
-        print("gwas_data_sumstats")
-        print(head(gwas_data_sumstats))
         # loop through context within the context group:
         for (context in contexts) {
           weights_matrix <- twas_weights_data[[molecular_id]][["weights"]][[context]]
@@ -254,7 +252,6 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file,
 harmonize_gwas <- function(gwas_file, query_region, ld_variants, col_to_flip=NULL, match_min_prop=0, column_file_path=NULL, comment_string="#"){
     if(is.null(gwas_file)| is.na(gwas_file)) stop("No GWAS file path provided. ")
     if (!is.null(column_file_path)) {  
-      print("use column_mapping_file")
       rss_result <- load_rss_data(  
         sumstat_path = gwas_file,  
         column_file_path = column_file_path,  
@@ -265,8 +262,6 @@ harmonize_gwas <- function(gwas_file, query_region, ld_variants, col_to_flip=NUL
     } else {  
       gwas_data_sumstats <- as.data.frame(tabix_region(gwas_file, query_region))  
     }
-    print("gwas_data_sumstats_in gwas")
-    print(head(gwas_data_sumstats))
     if (nrow(gwas_data_sumstats) == 0) {
         if (length(names(gwas_file))==0) names(gwas_file) <- gwas_file
         warning(paste0("No GWAS summary statistics found for the region of ", query_region, " in ", names(gwas_file), ". "))
