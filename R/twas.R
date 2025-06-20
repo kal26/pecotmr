@@ -26,7 +26,7 @@
 #' @importFrom S4Vectors queryHits subjectHits
 #' @importFrom IRanges IRanges findOverlaps start end reduce
 #' @export
-harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file) {
+harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file, column_file_path = NULL, comment_string = "#") {
   # Function to group contexts based on start and end positions
   group_contexts_by_region <- function(twas_weights_data, molecular_id, chrom, tolerance = 5000) {
     region_info_df <- do.call(rbind, lapply(names(twas_weights_data$weights), function(context) {
@@ -150,7 +150,9 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
       # Step 3: load GWAS data for clustered context groups
       for (study in names(gwas_files)) {
         gwas_file <- gwas_files[study]
-        gwas_data_sumstats <- harmonize_gwas(gwas_file, query_region=query_region, LD_list$combined_LD_variants, c("beta", "z"), match_min_prop = 0)
+        gwas_data_sumstats <- harmonize_gwas(gwas_file, query_region=query_region,   
+                                              LD_list$combined_LD_variants, c("beta", "z"),   
+                                              match_min_prop = 0, column_file_path = column_file_path, comment_string = comment_string)
         if(is.null(gwas_data_sumstats)) next
         # loop through context within the context group:
         for (context in contexts) {
@@ -247,9 +249,19 @@ harmonize_twas <- function(twas_weights_data, ld_meta_file_path, gwas_meta_file)
 #' @param query_region A string for region of query for tabix-indexed gwas summary statistics file in the format of chr:start-end
 #' @noRd
 #' @export
-harmonize_gwas <- function(gwas_file, query_region, ld_variants, col_to_flip=NULL, match_min_prop=0){
+harmonize_gwas <- function(gwas_file, query_region, ld_variants, col_to_flip=NULL, match_min_prop=0, column_file_path=NULL, comment_string="#"){
     if(is.null(gwas_file)| is.na(gwas_file)) stop("No GWAS file path provided. ")
-    gwas_data_sumstats <- as.data.frame(tabix_region(gwas_file, query_region)) # extension for yml file for column name mapping
+    if (!is.null(column_file_path)) {  
+      rss_result <- load_rss_data(  
+        sumstat_path = gwas_file,  
+        column_file_path = column_file_path,  
+        region = query_region,
+        comment_string = comment_string
+      )  
+      gwas_data_sumstats <- rss_result$sumstats  
+    } else {  
+      gwas_data_sumstats <- as.data.frame(tabix_region(gwas_file, query_region))  
+    }
     if (nrow(gwas_data_sumstats) == 0) {
         if (length(names(gwas_file))==0) names(gwas_file) <- gwas_file
         warning(paste0("No GWAS summary statistics found for the region of ", query_region, " in ", names(gwas_file), ". "))
@@ -287,7 +299,9 @@ twas_pipeline <- function(twas_weights_data,
                           mr_coverage_column = "cs_coverage_0.95",
                           quantile_twas = FALSE,
                           output_twas_data = FALSE,
-                          event_filters=NULL) {
+                          event_filters=NULL,
+                          column_file_path = NULL,
+                          comment_string="#") {
   # internal function to format TWAS output
   format_twas_data <- function(post_qc_twas_data, twas_table) {
     weights_list <- do.call(c, lapply(names(post_qc_twas_data), function(molecular_id) {
@@ -421,7 +435,7 @@ twas_pipeline <- function(twas_weights_data,
   }
 
   # harmonize twas weights and gwas sumstats against LD
-  twas_data_qced_result <- harmonize_twas(twas_weights_data, ld_meta_file_path, gwas_meta_file)
+  twas_data_qced_result <- harmonize_twas(twas_weights_data, ld_meta_file_path, gwas_meta_file, column_file_path = column_file_path, comment_string = comment_string)
   twas_results_db <- lapply(names(twas_weights_data), function(weight_db) {
     twas_weights_data[[weight_db]][["molecular_id"]] <- weight_db
     twas_data_qced <- twas_data_qced_result$twas_data_qced

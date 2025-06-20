@@ -5,7 +5,13 @@
 \title{Function to perform allele flip QC and harmonization on the weights and GWAS against LD for a region.
 FIXME: GWAS loading function from Haochen for both tabix & column-mapping yml application}
 \usage{
-harmonize_twas(twas_weights_data, ld_meta_file_path, gwas_meta_file)
+harmonize_twas(
+  twas_weights_data,
+  ld_meta_file_path,
+  gwas_meta_file,
+  column_file_path = NULL,
+  comment_string = "#"
+)
 }
 \arguments{
 \item{twas_weights_data}{List of list of twas weights output from from generate_twas_db function.}
