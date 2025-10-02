@@ -355,6 +355,15 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     LD_matrices = extracted_LD_matrices_list,
     variants = extracted_LD_variants_list
   )
+  # Normalize LD variant IDs at load time: add 'chr' prefix if missing
+  if (!is.null(colnames(combined_LD_matrix))) {
+    cn <- as.character(colnames(combined_LD_matrix))
+    colnames(combined_LD_matrix) <- ifelse(startsWith(cn, "chr"), cn, paste0("chr", cn))
+  }
+  if (!is.null(rownames(combined_LD_matrix))) {
+    rn <- as.character(rownames(combined_LD_matrix))
+    rownames(combined_LD_matrix) <- ifelse(startsWith(rn, "chr"), rn, paste0("chr", rn))
+  }
   combined_LD_variants <- rownames(combined_LD_matrix)
 
   # Now create block_metadata with all the information we've accumulated
