@@ -384,6 +384,8 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
   ref_panel <- do.call(rbind, lapply(strsplit(rownames(combined_LD_matrix), ":"), function(x) {
     data.frame(chrom = x[1], pos = as.integer(x[2]), A2 = x[3], A1 = x[4])
   }))
+  # Normalize ref_panel chrom to drop 'chr' prefix for merging with sumstats (which often use numeric chrom)
+  ref_panel$chrom <- sub("^chr", "", as.character(ref_panel$chrom))
 
   merged_variant_list <- do.call(rbind, extracted_LD_variants_list)
   ref_panel$variant_id <- rownames(combined_LD_matrix)
