@@ -63,8 +63,9 @@ rss_basic_qc <- function(sumstats, LD_data, skip_region = NULL, remove_indels = 
   present <- sumstats_processed$variant_id %in% ld_ids
   if (sum(present) == 0) {
     strip_build <- function(x) sub("(:|_)b[0-9]+$", "", x)
-    ld_core <- strip_build(ld_ids)
-    ss_core <- strip_build(sumstats_processed$variant_id)
+    drop_chr <- function(x) sub("^chr", "", x)
+    ld_core <- drop_chr(strip_build(ld_ids))
+    ss_core <- drop_chr(strip_build(sumstats_processed$variant_id))
     map_idx <- match(ss_core, ld_core)
     remap <- !is.na(map_idx)
     if (sum(remap) > 0) {
