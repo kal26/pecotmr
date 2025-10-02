@@ -4,12 +4,19 @@
 \alias{align_variant_names}
 \title{Align Variant Names}
 \usage{
-align_variant_names(source, reference, remove_indels = FALSE)
+align_variant_names(
+  source,
+  reference,
+  remove_indels = FALSE,
+  remove_build_suffix = TRUE
+)
 }
 \arguments{
 \item{source}{A character vector of variant names in the format "chr:pos:A2:A1" or "chr:pos_A2_A1".}
 
 \item{reference}{A character vector of variant names in the format "chr:pos:A2:A1" or "chr:pos_A2_A1".}
+
+\item{remove_build_suffix}{Whether to strip trailing genome build suffixes like ":b38" or "_b38" before alignment. Default TRUE.}
 }
 \value{
 A list with two elements:
