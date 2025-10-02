@@ -436,13 +436,24 @@ colocboost_analysis_pipeline <- function(region_data,
   if (!is.null(sumstat_data$sumstats)) {
     sumstats <- lapply(sumstat_data$sumstats, function(ss) {
       z <- ss$sumstats$z
-      variant <- paste0("chr", ss$sumstats$variant_id)
+      # Prefix 'chr' only if missing to avoid 'chrchr'
+      vi <- ss$sumstats$variant_id
+      has_chr <- startsWith(as.character(vi), "chr")
+      variant <- ifelse(has_chr, as.character(vi), paste0("chr", as.character(vi)))
       n <- ss$n
       data.frame("z" = z, "n" = n, "variant" = variant)
     })
     names(sumstats) <- names(sumstat_data$sumstats)
     LD_mat <- lapply(sumstat_data$LD_mat, function(ld) {
-      colnames(ld) <- rownames(ld) <- paste0("chr", colnames(ld))
+      # Ensure LD dimnames have 'chr' only once
+      cn <- colnames(ld)
+      rn <- rownames(ld)
+      if (!is.null(cn)) {
+        colnames(ld) <- ifelse(startsWith(as.character(cn), "chr"), as.character(cn), paste0("chr", as.character(cn)))
+      }
+      if (!is.null(rn)) {
+        rownames(ld) <- ifelse(startsWith(as.character(rn), "chr"), as.character(rn), paste0("chr", as.character(rn)))
+      }
       return(ld)
     })
     LD_match <- sumstat_data$LD_match
@@ -687,11 +698,11 @@ qc_regional_data <- function(region_data,
         n <- sumstat$n
         var_y <- sumstat$var_y
         conditions_sumstat <- names(sumstats)[ii]
-        pip_cutoff_to_skip_ld <- tryCatch(
-          as.numeric(pip_cutoff_to_skip_sumstat[conditions_sumstat]),
-          error = function(e) 0
-        )
-        if (is.na(pip_cutoff_to_skip_ld)) pip_cutoff_to_skip_ld <- 0
+        pip_cutoff_to_skip_ld <- if (conditions_sumstat %in% names(pip_cutoff_to_skip_sumstat)) {
+          as.numeric(pip_cutoff_to_skip_sumstat[conditions_sumstat])
+        } else {
+          0
+        }
 
         # Preprocess the input data
         preprocess_results <- rss_basic_qc(sumstat$sumstats, LD_data, remove_indels = remove_indels)
