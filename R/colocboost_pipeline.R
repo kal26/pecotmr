@@ -441,7 +441,15 @@ colocboost_analysis_pipeline <- function(region_data,
       has_chr <- startsWith(as.character(vi), "chr")
       variant <- ifelse(has_chr, as.character(vi), paste0("chr", as.character(vi)))
       n <- ss$n
-      data.frame("z" = z, "n" = n, "variant" = variant)
+      
+      # Filter out NA values from z-scores and corresponding variants
+      na_mask <- !is.na(z)
+      if (sum(na_mask) == 0) {
+        message("Warning: All z-scores are NA for this summary statistic dataset")
+        return(data.frame("z" = numeric(0), "n" = numeric(0), "variant" = character(0)))
+      }
+      
+      data.frame("z" = z[na_mask], "n" = n, "variant" = variant[na_mask])
     })
     names(sumstats) <- names(sumstat_data$sumstats)
     LD_mat <- lapply(sumstat_data$LD_mat, function(ld) {
