@@ -368,12 +368,20 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
 
   # Now create block_metadata with all the information we've accumulated
   block_variants <- lapply(extracted_LD_variants_list, function(v) v$variants)
+  # Normalize block_variants to match combined_LD_variants format (add 'chr' if needed)
+  block_variants_normalized <- lapply(block_variants, function(v) {
+    if (!any(startsWith(v, "chr"))) {
+      paste0("chr", v)
+    } else {
+      v
+    }
+  })
   block_metadata <- data.frame(
     block_id = seq_along(LD_file_paths),
     chrom = block_chroms,
     size = sapply(block_variants, length),
-    start_idx = sapply(block_variants, function(v) min(match(v, combined_LD_variants))),
-    end_idx = sapply(block_variants, function(v) max(match(v, combined_LD_variants))),
+    start_idx = sapply(block_variants_normalized, function(v) min(match(v, combined_LD_variants))),
+    end_idx = sapply(block_variants_normalized, function(v) max(match(v, combined_LD_variants))),
     stringsAsFactors = FALSE
   )
 
