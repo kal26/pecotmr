@@ -230,6 +230,7 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
 #'
 #' @param source A character vector of variant names in the format "chr:pos:A2:A1" or "chr:pos_A2_A1".
 #' @param reference A character vector of variant names in the format "chr:pos:A2:A1" or "chr:pos_A2_A1".
+#' @param remove_build_suffix Whether to strip trailing genome build suffixes like ":b38" or "_b38" before alignment. Default TRUE.
 #'
 #' @return A list with two elements:
 #' - aligned_variants: A character vector of aligned variant names.
@@ -241,7 +242,12 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
 #' align_variant_names(source, reference)
 #'
 #' @export
-align_variant_names <- function(source, reference, remove_indels = FALSE) {
+align_variant_names <- function(source, reference, remove_indels = FALSE, remove_build_suffix = TRUE) {
+  # Optionally strip build suffix like :b38 or _b38 from both sides for robust alignment
+  if (remove_build_suffix) {
+    source <- gsub("(:|_)b[0-9]+$", "", source)
+    reference <- gsub("(:|_)b[0-9]+$", "", reference)
+  }
   # Check if source and reference follow the expected pattern
   source_pattern <- grepl("^(chr)?[0-9]+:[0-9]+:[ATCG*]+:[ATCG*]+$|^(chr)?[0-9]+:[0-9]+_[ATCG*]+_[ATCG*]+$", source)
   reference_pattern <- grepl("^(chr)?[0-9]+:[0-9]+:[ATCG*]+:[ATCG*]+$|^(chr)?[0-9]+:[0-9]+_[ATCG*]+_[ATCG*]+$", reference)
