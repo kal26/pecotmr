@@ -687,7 +687,11 @@ qc_regional_data <- function(region_data,
         n <- sumstat$n
         var_y <- sumstat$var_y
         conditions_sumstat <- names(sumstats)[ii]
-        pip_cutoff_to_skip_ld <- pip_cutoff_to_skip_sumstat[conditions_sumstat] %>% as.numeric()
+        pip_cutoff_to_skip_ld <- tryCatch(
+          as.numeric(pip_cutoff_to_skip_sumstat[conditions_sumstat]),
+          error = function(e) 0
+        )
+        if (is.na(pip_cutoff_to_skip_ld)) pip_cutoff_to_skip_ld <- 0
 
         # Preprocess the input data
         preprocess_results <- rss_basic_qc(sumstat$sumstats, LD_data, remove_indels = remove_indels)
