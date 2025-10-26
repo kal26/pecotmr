@@ -1,4 +1,4 @@
-# pecotmr [![codecov](https://codecov.io/gh/StatFunGen/pecotmr/graph/badge.svg?token=NFH9R1OPG7)](https://codecov.io/StatFunGen/pecotmr)
+# pecotmr [![codecov](https://codecov.io/gh/StatFunGen/pecotmr/graph/badge.svg?token=NFH9R1OPG7)](https://codecov.io/gh/StatFunGen/pecotmr)
 
 This R package, `pecotmr` implements **p**ost-GWAS **e**nrichment, **co**localization, **T**WAS and **M**endelian **R**andomization to integrate QTL and GWAS analysis, mostly based on fine-mapped single effects model although a number of other approaches are included for handy availiability in daily research.
 `pecotmr` also stands for a **p**robabilistic **eco**system consolidating a range of established and new models into a streamlined, user-friendly interface complete with well-documented examples that will help getting your analysis done by **t**o**m**o**r**row if you start working on it today!
