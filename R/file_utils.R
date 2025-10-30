@@ -243,7 +243,20 @@ load_phenotype_data <- function(phenotype_path, region, extract_region_name = NU
         stop("region_name_col is out of bounds for the number of columns in tabix_data.")
       }
     } else {
-      return(tabix_data %>% t())
+      # No extract_region_name filter: still transpose and assign names appropriately
+      result <- tabix_data %>% t()
+      if (!is.null(region_name_col) && (region_name_col %% 1 == 0)) {
+        if (region_name_col <= ncol(tabix_data)) {
+          # After transpose, the desired name row is at index region_name_col
+          colnames(result) <- result[region_name_col, ]
+        } else {
+          stop("region_name_col is out of bounds for the number of columns in tabix_data.")
+        }
+      } else if (is.null(colnames(result))) {
+        # Fallback: synthesize names if still missing
+        colnames(result) <- paste0("region_", seq_len(ncol(result)))
+      }
+      return(result)
     }
   }))
 
