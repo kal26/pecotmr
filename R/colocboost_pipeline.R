@@ -615,6 +615,15 @@ qc_regional_data <- function(region_data,
     # - add context to colname of Y
     Y <- add_context_to_Y(Y)
     n_context <- length(X)
+    # Validate pip_cutoff_to_skip_ind length: allow scalar or exact length; otherwise error
+    if (length(pip_cutoff_to_skip_ind) == 1) {
+      pip_cutoff_vec <- rep(pip_cutoff_to_skip_ind, n_context)
+    } else if (length(pip_cutoff_to_skip_ind) == n_context) {
+      pip_cutoff_vec <- pip_cutoff_to_skip_ind
+    } else {
+      stop(sprintf("pip_cutoff_to_skip_ind length (%d) must be 1 or equal to number of contexts (%d)",
+                   length(pip_cutoff_to_skip_ind), n_context))
+    }
     residual_X <- residual_Y <- list()
     keep_contexts <- c()
     for (i_context in 1:n_context) {
@@ -626,8 +635,8 @@ qc_regional_data <- function(region_data,
       # - remove variants with maf < maf_cutoff
       # tmp <- filter_resX_maf(resX, maf, maf_cutoff = maf_cutoff)
       resX <- filter_X(resX, missing_rate_thresh = NULL, maf_thresh = maf_cutoff, maf = maf)
-      # Initial PIP check
-      resY <- filter_resY_pip(resX, resY, pip_cutoff = pip_cutoff_to_skip_ind[i_context], context = context)
+      # Initial PIP check (use recycled vector element)
+      resY <- filter_resY_pip(resX, resY, pip_cutoff = pip_cutoff_vec[i_context], context = context)
       if (!is.null(resY)) {
         residual_X <- c(residual_X, list(resX))
         residual_Y <- c(residual_Y, list(resY))
@@ -689,7 +698,26 @@ qc_regional_data <- function(region_data,
         n <- sumstat$n
         var_y <- sumstat$var_y
         conditions_sumstat <- names(sumstats)[ii]
-        pip_cutoff_to_skip_ld <- pip_cutoff_to_skip_sumstat[conditions_sumstat] %>% as.numeric()
+        # Determine PIP cutoff per sumstat with strict validation:
+        # - scalar applies to all studies
+        # - length equals number of studies -> positional mapping
+        # - named vector that covers ALL study names -> name-based mapping
+        # Otherwise: throw error (do not silently default)
+        if (length(pip_cutoff_to_skip_sumstat) == 1) {
+          pip_cutoff_to_skip_ld <- as.numeric(pip_cutoff_to_skip_sumstat)
+        } else if (length(pip_cutoff_to_skip_sumstat) == length(sumstats) && is.null(names(pip_cutoff_to_skip_sumstat))) {
+          pip_cutoff_to_skip_ld <- as.numeric(pip_cutoff_to_skip_sumstat[ii])
+        } else if (!is.null(names(pip_cutoff_to_skip_sumstat))) {
+          missing_names <- setdiff(names(sumstats), names(pip_cutoff_to_skip_sumstat))
+          if (length(missing_names) > 0) {
+            stop(sprintf("pip_cutoff_to_skip_sumstat must provide values for all studies; missing: %s",
+                         paste(missing_names, collapse = ", ")))
+          }
+          pip_cutoff_to_skip_ld <- as.numeric(pip_cutoff_to_skip_sumstat[conditions_sumstat])
+        } else {
+          stop(sprintf("pip_cutoff_to_skip_sumstat length (%d) must be 1, equal to number of studies (%d), or be a named vector covering all studies",
+                       length(pip_cutoff_to_skip_sumstat), length(sumstats)))
+        }
 
         # Preprocess the input data
         preprocess_results <- rss_basic_qc(sumstat$sumstats, LD_data, remove_indels = remove_indels)
