@@ -554,6 +554,7 @@ qc_regional_data <- function(region_data,
                              qc_method = c("rss_qc", "dentist", "slalom"),
                              impute = TRUE,
                              impute_opts = list(rcond = 0.01, R2_threshold = 0.6, minimum_ld = 5, lamb = 0.01)) {
+  if (!is.null(qc_method)) qc_method <- match.arg(qc_method)
   #### related internal functions
   # Add context names to colname of Y if missing
   add_context_to_Y <- function(res_Y) {
@@ -675,6 +676,7 @@ qc_regional_data <- function(region_data,
                                          qc_method = c("rss_qc", "dentist", "slalom"),
                                          impute = TRUE,
                                          impute_opts = list(rcond = 0.01, R2_threshold = 0.6, minimum_ld = 5, lamb = 0.01)) {
+    if (!is.null(qc_method)) qc_method <- match.arg(qc_method)
     n_LD <- length(sumstat_data$LD_info)
     final_sumstats <- final_LD <- NULL
     LD_match <- c()
