@@ -54,6 +54,29 @@ rss_basic_qc <- function(sumstats, LD_data, skip_region = NULL, remove_indels = 
 
   sumstats_processed <- allele_flip$target_data_qced %>% arrange(pos)
 
+  # Align and subset LD by mapping core IDs (strip trailing build suffix) to exact LD IDs
+  ld_mat <- LD_data$combined_LD_matrix
+  ld_ids <- tryCatch(rownames(ld_mat), error = function(e) NULL)
+  if (is.null(ld_ids)) {
+    stop("LD matrix rownames are NULL; cannot align variant IDs.")
+  }
+  present <- sumstats_processed$variant_id %in% ld_ids
+  if (sum(present) == 0) {
+    strip_build <- function(x) sub("(:|_)b[0-9]+$", "", x)
+    drop_chr <- function(x) sub("^chr", "", x)
+    ld_core <- drop_chr(strip_build(ld_ids))
+    ss_core <- drop_chr(strip_build(sumstats_processed$variant_id))
+    map_idx <- match(ss_core, ld_core)
+    remap <- !is.na(map_idx)
+    if (sum(remap) > 0) {
+      sumstats_processed$variant_id[remap] <- ld_ids[map_idx[remap]]
+      present <- sumstats_processed$variant_id %in% ld_ids
+    }
+  }
+  if (sum(present) == 0) {
+    stop("No overlapping variants between sumstats and LD after alignment.")
+  }
+
   LD_mat_processed <- LD_data$combined_LD_matrix[sumstats_processed$variant_id, sumstats_processed$variant_id, drop = FALSE]
 
   return(list(sumstats = sumstats_processed, LD_mat = LD_mat_processed))

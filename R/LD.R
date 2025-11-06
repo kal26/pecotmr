@@ -355,16 +355,33 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
     LD_matrices = extracted_LD_matrices_list,
     variants = extracted_LD_variants_list
   )
+  # Normalize LD variant IDs at load time: add 'chr' prefix if missing
+  if (!is.null(colnames(combined_LD_matrix))) {
+    cn <- as.character(colnames(combined_LD_matrix))
+    colnames(combined_LD_matrix) <- ifelse(startsWith(cn, "chr"), cn, paste0("chr", cn))
+  }
+  if (!is.null(rownames(combined_LD_matrix))) {
+    rn <- as.character(rownames(combined_LD_matrix))
+    rownames(combined_LD_matrix) <- ifelse(startsWith(rn, "chr"), rn, paste0("chr", rn))
+  }
   combined_LD_variants <- rownames(combined_LD_matrix)
 
   # Now create block_metadata with all the information we've accumulated
   block_variants <- lapply(extracted_LD_variants_list, function(v) v$variants)
+  # Normalize block_variants to match combined_LD_variants format (add 'chr' if needed)
+  block_variants_normalized <- lapply(block_variants, function(v) {
+    if (!any(startsWith(v, "chr"))) {
+      paste0("chr", v)
+    } else {
+      v
+    }
+  })
   block_metadata <- data.frame(
     block_id = seq_along(LD_file_paths),
     chrom = block_chroms,
     size = sapply(block_variants, length),
-    start_idx = sapply(block_variants, function(v) min(match(v, combined_LD_variants))),
-    end_idx = sapply(block_variants, function(v) max(match(v, combined_LD_variants))),
+    start_idx = sapply(block_variants_normalized, function(v) min(match(v, combined_LD_variants))),
+    end_idx = sapply(block_variants_normalized, function(v) max(match(v, combined_LD_variants))),
     stringsAsFactors = FALSE
   )
 
@@ -375,6 +392,8 @@ load_LD_matrix <- function(LD_meta_file_path, region, extract_coordinates = NULL
   ref_panel <- do.call(rbind, lapply(strsplit(rownames(combined_LD_matrix), ":"), function(x) {
     data.frame(chrom = x[1], pos = as.integer(x[2]), A2 = x[3], A1 = x[4])
   }))
+  # Normalize ref_panel chrom to drop 'chr' prefix for merging with sumstats (which often use numeric chrom)
+  ref_panel$chrom <- sub("^chr", "", as.character(ref_panel$chrom))
 
   merged_variant_list <- do.call(rbind, extracted_LD_variants_list)
   ref_panel$variant_id <- rownames(combined_LD_matrix)

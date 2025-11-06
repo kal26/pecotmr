@@ -436,13 +436,32 @@ colocboost_analysis_pipeline <- function(region_data,
   if (!is.null(sumstat_data$sumstats)) {
     sumstats <- lapply(sumstat_data$sumstats, function(ss) {
       z <- ss$sumstats$z
-      variant <- paste0("chr", ss$sumstats$variant_id)
+      # Prefix 'chr' only if missing to avoid 'chrchr'
+      vi <- ss$sumstats$variant_id
+      has_chr <- startsWith(as.character(vi), "chr")
+      variant <- ifelse(has_chr, as.character(vi), paste0("chr", as.character(vi)))
       n <- ss$n
-      data.frame("z" = z, "n" = n, "variant" = variant)
+      
+      # Filter out NA values from z-scores and corresponding variants
+      na_mask <- !is.na(z)
+      if (sum(na_mask) == 0) {
+        message("Warning: All z-scores are NA for this summary statistic dataset")
+        return(data.frame("z" = numeric(0), "n" = numeric(0), "variant" = character(0)))
+      }
+      
+      data.frame("z" = z[na_mask], "n" = n, "variant" = variant[na_mask])
     })
     names(sumstats) <- names(sumstat_data$sumstats)
     LD_mat <- lapply(sumstat_data$LD_mat, function(ld) {
-      colnames(ld) <- rownames(ld) <- paste0("chr", colnames(ld))
+      # Ensure LD dimnames have 'chr' only once
+      cn <- colnames(ld)
+      rn <- rownames(ld)
+      if (!is.null(cn)) {
+        colnames(ld) <- ifelse(startsWith(as.character(cn), "chr"), as.character(cn), paste0("chr", as.character(cn)))
+      }
+      if (!is.null(rn)) {
+        rownames(ld) <- ifelse(startsWith(as.character(rn), "chr"), as.character(rn), paste0("chr", as.character(rn)))
+      }
       return(ld)
     })
     LD_match <- sumstat_data$LD_match
@@ -451,6 +470,35 @@ colocboost_analysis_pipeline <- function(region_data,
     sumstats <- LD_mat <- dict_sumstatLD <- NULL
   }
 
+  # Helper: validate a single GWAS study data.frame and its LD matrix
+  is_valid_sumstat_entry <- function(df, ld_matrix) {
+    if (is.null(df) || nrow(df) == 0) return(FALSE)
+    if (!all(c("z", "n", "variant") %in% colnames(df))) return(FALSE)
+    n_vals <- suppressWarnings(as.numeric(unique(df$n)))
+    if (length(n_vals) == 0 || is.na(n_vals[1]) || !is.finite(n_vals[1]) || n_vals[1] < 3) return(FALSE)
+    if (all(is.na(df$z))) return(FALSE)
+    if (is.null(ld_matrix)) return(FALSE)
+    if (!is.matrix(ld_matrix)) return(FALSE)
+    if (any(!is.finite(ld_matrix))) return(FALSE)
+    # Ensure at least 1 overlapping variant with LD matrix dimnames
+    ld_vars <- intersect(rownames(ld_matrix), colnames(ld_matrix))
+    if (length(ld_vars) == 0) return(FALSE)
+    if (length(intersect(as.character(df$variant), as.character(ld_vars))) == 0) return(FALSE)
+    TRUE
+  }
+
+  # Helper: filter joint structures (sumstats list and dict_sumstatLD) to only valid entries
+  filter_valid_sumstats <- function(sumstats, LD_mat, dict_sumstatLD) {
+    if (is.null(sumstats) || is.null(dict_sumstatLD) || is.null(LD_mat)) return(list(sumstats = NULL, dict = NULL))
+    keep <- vector("logical", length(sumstats))
+    for (i in seq_along(sumstats)) {
+      ld_idx <- dict_sumstatLD[i, 2]
+      ld_matrix <- if (!is.na(ld_idx)) LD_mat[[ld_idx]] else NULL
+      keep[i] <- is_valid_sumstat_entry(sumstats[[i]], ld_matrix)
+    }
+    if (!any(keep)) return(list(sumstats = NULL, dict = NULL))
+    list(sumstats = sumstats[keep], dict = matrix(dict_sumstatLD[keep, , drop = FALSE], ncol = 2))
+  }
 
   ####### ========= streamline three types of analyses ======== ########
   if (is.null(X) & is.null(sumstats)) {
@@ -481,16 +529,22 @@ colocboost_analysis_pipeline <- function(region_data,
   if (joint_gwas & !is.null(sumstats)) {
     message(paste("====== Performing non-focaled version GWAS-xQTL ColocBoost on", length(Y), "contexts and", length(sumstats), "GWAS. ====="))
     t21 <- Sys.time()
-    traits <- c(names(Y), names(sumstats))
-    res_gwas <- colocboost(
-      X = X, Y = Y, sumstat = sumstats, LD = LD_mat,
-      dict_YX = dict_YX, dict_sumstatLD = dict_sumstatLD,
-      outcome_names = traits, focal_outcome_idx = NULL, 
-      output_level = 2, ...
-    )
-    t22 <- Sys.time()
-    analysis_results$joint_gwas <- res_gwas
-    analysis_results$computing_time$Analysis$joint_gwas <- t22 - t21
+    # Filter invalid GWAS before calling colocboost
+    filtered <- filter_valid_sumstats(sumstats, LD_mat, dict_sumstatLD)
+    if (is.null(filtered$sumstats)) {
+      message("All GWAS studies failed validation; skipping joint GWAS analysis for this region.")
+    } else {
+      traits <- c(names(Y), names(filtered$sumstats))
+      res_gwas <- colocboost(
+        X = X, Y = Y, sumstat = filtered$sumstats, LD = LD_mat,
+        dict_YX = dict_YX, dict_sumstatLD = filtered$dict,
+        outcome_names = traits, focal_outcome_idx = NULL, 
+        output_level = 2, ...
+      )
+      t22 <- Sys.time()
+      analysis_results$joint_gwas <- res_gwas
+      analysis_results$computing_time$Analysis$joint_gwas <- t22 - t21
+    }
   }
   # - run focaled version of ColocBoost for each GWAS
   if (separate_gwas & !is.null(sumstats)) {
@@ -498,15 +552,32 @@ colocboost_analysis_pipeline <- function(region_data,
     res_gwas_separate <- analysis_results$separate_gwas
     for (i_gwas in 1:nrow(dict_sumstatLD)) {
       current_study <- names(sumstats)[i_gwas]
-      message(paste("====== Performing focaled version GWAS-xQTL ColocBoost on", length(Y), "contexts and ", current_study, "GWAS. ====="))
       dict <- dict_sumstatLD[i_gwas, ]
+      # Validate this study before calling colocboost
+      ld_idx <- dict[2]
+      ld_matrix <- if (!is.na(ld_idx)) LD_mat[[ld_idx]] else NULL
+      valid <- is_valid_sumstat_entry(sumstats[[dict[1]]], ld_matrix)
+      if (!isTRUE(valid)) {
+        message(paste("Skipping", current_study, "due to invalid N/z/LD."))
+        next
+      }
+      message(paste("====== Performing focaled version GWAS-xQTL ColocBoost on", length(Y), "contexts and ", current_study, "GWAS. ====="))
       traits <- c(names(Y), current_study)
-      res_gwas_separate[[current_study]] <- colocboost(
-        X = X, Y = Y, sumstat = sumstats[dict[1]],
-        LD = LD_mat[dict[2]], dict_YX = dict_YX,
-        outcome_names = traits, focal_outcome_idx = length(traits), 
-        output_level = 2, ...
-      )
+      
+      # Try to run colocboost with error handling
+      tryCatch({
+        res_gwas_separate[[current_study]] <- colocboost(
+          X = X, Y = Y, sumstat = sumstats[dict[1]],
+          LD = LD_mat[dict[2]], dict_YX = dict_YX,
+          outcome_names = traits, focal_outcome_idx = length(traits), 
+          output_level = 2, ...
+        )
+      }, error = function(e) {
+        message(paste("Error in colocboost analysis for", current_study, ":"))
+        message(paste("Error message:", e$message))
+        message(paste("Continuing with next GWAS..."))
+        res_gwas_separate[[current_study]] <<- NULL
+      })
     }
     t32 <- Sys.time()
     analysis_results$separate_gwas <- res_gwas_separate

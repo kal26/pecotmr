@@ -330,10 +330,10 @@ filter_raiss_output <- function(zscores, R2_threshold = 0.6, minimum_ld = 5, ver
 
   # Count statistics before filtering
   NSNPs_bf_filt <- nrow(zscores)
-  NSNPs_initial <- sum(zscores$raiss_R2 == 2.0)
-  NSNPs_imputed <- sum(zscores$raiss_R2 != 2.0)
-  NSNPs_ld_filt <- sum(zscores$raiss_ld_score < minimum_ld)
-  NSNPs_R2_filt <- sum(zscores$raiss_R2 < R2_threshold)
+  NSNPs_initial <- sum(zscores$raiss_R2 == 2.0, na.rm = TRUE)
+  NSNPs_imputed <- sum(zscores$raiss_R2 != 2.0, na.rm = TRUE)
+  NSNPs_ld_filt <- sum(zscores$raiss_ld_score < minimum_ld, na.rm = TRUE)
+  NSNPs_R2_filt <- sum(zscores$raiss_R2 < R2_threshold, na.rm = TRUE)
 
   # Apply filters
   zscores_nofilter <- zscores
