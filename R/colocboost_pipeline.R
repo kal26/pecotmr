@@ -116,11 +116,70 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
       phenotype <- phenotype_list[pos]
       covariate <- covariate_list[pos]
       conditions <- conditions_list_individual[pos]
+      
+      # Helper function to check if phenotype file has data for the specific region
+      # Note: The file may have data elsewhere, but we only care about this region
+      check_phenotype_has_data <- function(pheno_file, region_str) {
+        if (!file.exists(pheno_file)) {
+          return(FALSE)
+        }
+        # Parse region to get chromosome and coordinates
+        region_parts <- strsplit(region_str, ":", fixed = TRUE)[[1]]
+        if (length(region_parts) != 2) {
+          return(TRUE)  # If region format is wrong, let the actual load function handle it
+        }
+        chr <- region_parts[1]
+        coord_parts <- strsplit(region_parts[2], "-", fixed = TRUE)[[1]]
+        if (length(coord_parts) != 2) {
+          return(TRUE)  # If region format is wrong, let the actual load function handle it
+        }
+        start <- coord_parts[1]
+        end <- coord_parts[2]
+        
+        # Remove 'chr' prefix if present for tabix
+        chr_tabix <- sub("^chr", "", chr)
+        region_tabix <- paste0(chr_tabix, ":", start, "-", end)
+        
+        # Use tabix to check if file has data for this specific region
+        tabix_result <- suppressWarnings(
+          system2("tabix", args = c("-h", pheno_file, region_tabix), 
+                 stdout = TRUE, stderr = TRUE)
+        )
+        
+        # Check if tabix found any data (non-empty output excluding header)
+        # This checks for data in the specific region, not whether the file is completely empty
+        data_lines <- tabix_result[!grepl("^#", tabix_result) & nzchar(trimws(tabix_result))]
+        return(length(data_lines) > 0)
+      }
+      
+      # Filter to only phenotypes with data for this specific region
+      has_data <- vapply(phenotype, function(p) check_phenotype_has_data(p, region), logical(1))
+      valid_indices <- which(has_data)
+      
+      if (length(valid_indices) == 0) {
+        warning("No phenotype files have data for region ", region, 
+               " for genotype dataset ", i_data, ". Skipping this dataset.")
+        next
+      }
+      
+      if (length(valid_indices) < length(phenotype)) {
+        skipped_conditions <- conditions[!has_data]
+        warning("Filtered from ", length(phenotype), " to ", length(valid_indices),
+               " tissues with data in region ", region, 
+               ". Skipped tissues (no data in this region): ", paste(skipped_conditions, collapse = ", "))
+      }
+      
+      # Filter lists to only valid phenotypes
+      phenotype_filtered <- phenotype[valid_indices]
+      covariate_filtered <- covariate[valid_indices]
+      conditions_filtered <- conditions[valid_indices]
+      
+      # Load all valid phenotypes together
       dat <- load_regional_univariate_data(
-        genotype = genotype, phenotype = phenotype,
-        covariate = covariate, region = region,
+        genotype = genotype, phenotype = phenotype_filtered,
+        covariate = covariate_filtered, region = region,
         association_window = association_window,
-        conditions = conditions, xvar_cutoff = xvar_cutoff,
+        conditions = conditions_filtered, xvar_cutoff = xvar_cutoff,
         maf_cutoff = maf_cutoff, mac_cutoff = mac_cutoff,
         imiss_cutoff = imiss_cutoff, keep_indel = keep_indel,
         keep_samples = keep_samples, keep_variants = keep_variants,
@@ -129,6 +188,7 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
         region_name_col = region_name_col,
         scale_residuals = scale_residuals
       )
+      
       if (is.null(individual_data)) {
         individual_data <- dat
       } else {
