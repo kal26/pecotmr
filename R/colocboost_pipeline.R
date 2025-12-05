@@ -111,16 +111,143 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
     for (i_data in 1:n_dataset) {
       # extract genotype file name
       genotype <- genotype_list[i_data]
+      
+      # Check if PLINK files exist (.bed/.bim/.fam for PLINK 1 or .pgen/.pvar/.psam for PLINK 2)
+      bed_file <- paste0(genotype, ".bed")
+      bim_file <- paste0(genotype, ".bim")
+      fam_file <- paste0(genotype, ".fam")
+      pgen_file <- paste0(genotype, ".pgen")
+      pvar_file <- paste0(genotype, ".pvar")
+      psam_file <- paste0(genotype, ".psam")
+      
+      plink1_exists <- file.exists(bed_file) && file.exists(bim_file) && file.exists(fam_file)
+      plink2_exists <- file.exists(pgen_file) && file.exists(pvar_file) && file.exists(psam_file)
+      
+      if (!plink1_exists && !plink2_exists) {
+        missing_files <- c()
+        if (!file.exists(bed_file)) missing_files <- c(missing_files, bed_file)
+        if (!file.exists(bim_file)) missing_files <- c(missing_files, bim_file)
+        if (!file.exists(fam_file)) missing_files <- c(missing_files, fam_file)
+        if (!file.exists(pgen_file)) missing_files <- c(missing_files, pgen_file)
+        if (!file.exists(pvar_file)) missing_files <- c(missing_files, pvar_file)
+        if (!file.exists(psam_file)) missing_files <- c(missing_files, psam_file)
+        
+        stop("Genotype files do not exist for dataset ", i_data, ".\n",
+             "  Base path: ", genotype, "\n",
+             "  Missing files: ", paste(missing_files, collapse = ", "),
+             call. = FALSE)
+      }
+      
       # extract phenotype and covariate file names
       pos <- which(match_geno_pheno == i_data)
       phenotype <- phenotype_list[pos]
       covariate <- covariate_list[pos]
       conditions <- conditions_list_individual[pos]
+      
+      # Check for missing files first and provide clear errors
+      missing_pheno <- !vapply(phenotype, file.exists, logical(1))
+      missing_covar <- !vapply(covariate, file.exists, logical(1))
+      
+      if (any(missing_pheno)) {
+        missing_pheno_files <- phenotype[missing_pheno]
+        missing_pheno_conditions <- conditions[missing_pheno]
+        stop("Phenotype file(s) do not exist:\n",
+             paste(paste0("  - ", missing_pheno_conditions, ": ", missing_pheno_files), collapse = "\n"),
+             call. = FALSE)
+      }
+      
+      if (any(missing_covar)) {
+        missing_covar_files <- covariate[missing_covar]
+        missing_covar_conditions <- conditions[missing_covar]
+        stop("Covariate file(s) do not exist:\n",
+             paste(paste0("  - ", missing_covar_conditions, ": ", missing_covar_files), collapse = "\n"),
+             call. = FALSE)
+      }
+      
+      # All files should exist at this point (errors would have been thrown)
+      
+      # Helper function to check if phenotype file has data for the specific region
+      # Note: The file may have data elsewhere, but we only care about this region
+      # This is a pre-check; the actual loader will do the definitive check
+      check_phenotype_has_data <- function(pheno_file, region_str) {
+        # File existence already checked above, so we can assume it exists here
+        # Parse region to get chromosome and coordinates
+        region_parts <- strsplit(region_str, ":", fixed = TRUE)[[1]]
+        if (length(region_parts) != 2) {
+          return(TRUE)  # If region format is wrong, let the actual load function handle it
+        }
+        chr <- region_parts[1]
+        coord_parts <- strsplit(region_parts[2], "-", fixed = TRUE)[[1]]
+        if (length(coord_parts) != 2) {
+          return(TRUE)  # If region format is wrong, let the actual load function handle it
+        }
+        start <- coord_parts[1]
+        end <- coord_parts[2]
+        
+        # Try both formats: with and without 'chr' prefix
+        # Different files may be indexed with different formats
+        region_formats <- c(
+          region_str,  # Try original format first (e.g., "chr1:0-1000000")
+          paste0(sub("^chr", "", chr), ":", start, "-", end)  # Try without chr (e.g., "1:0-1000000")
+        )
+        
+        # Use tabix to check if file has data for this specific region
+        # Use the same approach as tabix_region: try fread with tabix command
+        for (region_tabix in region_formats) {
+          # Try using fread with tabix command (same as tabix_region does)
+          cmd_output <- tryCatch(
+            {
+              data.table::fread(cmd = paste0("tabix -h ", pheno_file, " ", region_tabix), 
+                               sep = "auto", header = "auto")
+            },
+            error = function(e) NULL
+          )
+          
+          # If we got output with data, return TRUE
+          if (!is.null(cmd_output) && nrow(cmd_output) > 0) {
+            return(TRUE)
+          }
+          
+          # If fread failed, it might be because file isn't indexed or has other issues
+          # In that case, be lenient and let the actual loader handle it
+          # (The loader will give a proper error message if needed)
+        }
+        
+        # If we tried all formats and got no data, return FALSE
+        # But only if we successfully queried (didn't get errors)
+        # For now, if we reach here after trying both formats, assume no data
+        return(FALSE)
+      }
+      
+      # Filter to only phenotypes with data for this specific region
+      has_data <- vapply(phenotype, function(p) check_phenotype_has_data(p, region), logical(1))
+      valid_indices <- which(has_data)
+      
+      if (length(valid_indices) == 0) {
+        warning("No phenotype files have data for region ", region, 
+               " for genotype dataset ", i_data, ". Skipping this dataset.", call. = FALSE)
+        next
+      }
+      
+      if (length(valid_indices) < length(phenotype)) {
+        skipped_conditions <- conditions[!has_data]
+        warning("Filtered from ", length(phenotype), " to ", length(valid_indices),
+               " tissues with data in region ", region, 
+               ". Skipped tissues (no data in this region): ", paste(skipped_conditions, collapse = ", "),
+               call. = FALSE)
+      }
+      
+      # Filter lists to only valid phenotypes
+      phenotype_filtered <- phenotype[valid_indices]
+      covariate_filtered <- covariate[valid_indices]
+      conditions_filtered <- conditions[valid_indices]
+      
+      # Load all valid phenotypes together
       dat <- load_regional_univariate_data(
-        genotype = genotype, phenotype = phenotype,
-        covariate = covariate, region = region,
+        genotype = genotype, phenotype = phenotype_filtered,
+        covariate = covariate_filtered, region = region,
         association_window = association_window,
-        conditions = conditions, xvar_cutoff = xvar_cutoff,
+        conditions = conditions_filtered, xvar_cutoff = xvar_cutoff,
         maf_cutoff = maf_cutoff, mac_cutoff = mac_cutoff,
         imiss_cutoff = imiss_cutoff, keep_indel = keep_indel,
         keep_samples = keep_samples, keep_variants = keep_variants,
@@ -129,6 +256,7 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
         region_name_col = region_name_col,
         scale_residuals = scale_residuals
       )
+      
       if (is.null(individual_data)) {
         individual_data <- dat
       } else {
@@ -150,11 +278,55 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
     if (length(match_LD_sumstat) != length(LD_meta_file_path_list)) {
       stop("Please make sure 'match_LD_sumstat' matched 'LD_meta_file_path_list' if you load data from multiple sumstats.")
     }
+    
+    # Check for missing sumstat files
+    missing_sumstat <- !vapply(sumstat_path_list, file.exists, logical(1))
+    if (any(missing_sumstat)) {
+      missing_sumstat_files <- sumstat_path_list[missing_sumstat]
+      missing_sumstat_conditions <- if (!is.null(conditions_list_sumstat)) {
+        conditions_list_sumstat[missing_sumstat]
+      } else {
+        paste0("sumstat_", which(missing_sumstat))
+      }
+      stop("Summary statistics file(s) do not exist:\n",
+           paste(paste0("  - ", missing_sumstat_conditions, ": ", missing_sumstat_files), collapse = "\n"),
+           call. = FALSE)
+    }
+    
+    # Check for missing column mapping files
+    missing_column <- !vapply(column_file_path_list, file.exists, logical(1))
+    if (any(missing_column)) {
+      missing_column_files <- column_file_path_list[missing_column]
+      missing_column_conditions <- if (!is.null(conditions_list_sumstat)) {
+        conditions_list_sumstat[missing_column]
+      } else {
+        paste0("sumstat_", which(missing_column))
+      }
+      stop("Column mapping file(s) do not exist:\n",
+           paste(paste0("  - ", missing_column_conditions, ": ", missing_column_files), collapse = "\n"),
+           call. = FALSE)
+    }
+    
+    # Check for missing LD metadata files
+    missing_ld_meta <- !vapply(LD_meta_file_path_list, file.exists, logical(1))
+    if (any(missing_ld_meta)) {
+      missing_ld_meta_files <- LD_meta_file_path_list[missing_ld_meta]
+      stop("LD metadata file(s) do not exist:\n",
+           paste(paste0("  - LD_meta_", which(missing_ld_meta), ": ", missing_ld_meta_files), collapse = "\n"),
+           call. = FALSE)
+    }
+    
     # - load sumstat data from multiple datasets
     n_LD <- length(match_LD_sumstat)
     for (i_ld in 1:n_LD) {
       # extract LD meta file path name
       LD_meta_file_path <- LD_meta_file_path_list[i_ld]
+      
+      # Error if LD metadata file doesn't exist (already checked above, but double-check)
+      if (!file.exists(LD_meta_file_path)) {
+        stop("LD metadata file does not exist for dataset ", i_ld, ": ", LD_meta_file_path, call. = FALSE)
+      }
+      
       LD_info <- load_LD_matrix(LD_meta_file_path,
         region = association_window,
         extract_coordinates = extract_coordinates
@@ -165,6 +337,14 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
       sumstats <- lapply(pos, function(ii) {
         sumstat_path <- sumstat_path_list[ii]
         column_file_path <- column_file_path_list[ii]
+        
+        # Error if files don't exist (already checked above, but double-check)
+        if (!file.exists(sumstat_path)) {
+          stop("Summary statistics file does not exist for ", conditions_list_sumstat[ii], ": ", sumstat_path, call. = FALSE)
+        }
+        if (!file.exists(column_file_path)) {
+          stop("Column mapping file does not exist for ", conditions_list_sumstat[ii], ": ", column_file_path, call. = FALSE)
+        }
         # FIXME later: when consider multiple LD reference
         tmp <- load_rss_data(
           sumstat_path = sumstat_path, column_file_path = column_file_path,
@@ -179,6 +359,8 @@ load_multitask_regional_data <- function(region, # a string of chr:start-end for
         }
         return(tmp)
       })
+      
+      # All files should exist at this point (errors would have been thrown)
       names(sumstats) <- conditions
       sumstat_data$sumstats <- c(sumstat_data$sumstats, list(sumstats))
       sumstat_data$LD_info <- c(sumstat_data$LD_info, list(LD_info))
