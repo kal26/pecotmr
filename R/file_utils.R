@@ -209,7 +209,7 @@ NoPhenotypeError <- function(message) {
   structure(list(message = message), class = c("NoPhenotypeError", "error", "condition"))
 }
 
-#' @importFrom purrr map2 compact
+#' @importFrom purrr map2
 #' @importFrom readr read_delim cols
 #' @importFrom dplyr filter select mutate across everything
 #' @importFrom magrittr %>%
@@ -224,8 +224,7 @@ load_phenotype_data <- function(phenotype_path, region, extract_region_name = NU
   }
 
   # Use `map2` to iterate over `phenotype_path` and `extract_region_name` simultaneously
-  # `compact` should remove all NULL element
-  phenotype_data <- compact(map2(phenotype_path, extract_region_name, ~ {
+  phenotype_data <- map2(phenotype_path, extract_region_name, ~ {
     tabix_data <- if (!is.null(region)) tabix_region(.x, region, tabix_header = tabix_header) else read_delim(.x, "\t", col_types = cols())
     if (nrow(tabix_data) == 0) {
       message(paste("Phenotype file ", .x, " is empty for the specified region", if (!is.null(region)) "" else region))
@@ -245,10 +244,10 @@ load_phenotype_data <- function(phenotype_path, region, extract_region_name = NU
     } else {
       return(tabix_data %>% t())
     }
-  }))
+  })
 
-  # Check if all phenotype files are empty
-  if (length(phenotype_data) == 0) {
+  # Check if all phenotype files are empty (all elements NULL)
+  if (all(vapply(phenotype_data, is.null, logical(1)))) {
     stop(NoPhenotypeError(paste("All phenotype files are empty for the specified region", if (!is.null(region)) "" else region)))
   }
   return(phenotype_data)
@@ -456,6 +455,25 @@ load_regional_association_data <- function(genotype, # PLINK file
   ## Load phenotype and covariates and perform some pre-processing
   covar <- load_covariate_data(covariate)
   pheno <- load_phenotype_data(phenotype, region, extract_region_name = extract_region_name, region_name_col = region_name_col, tabix_header = tabix_header)
+
+  # Keep covariates / conditions aligned with successfully loaded phenotypes.
+  # load_phenotype_data() returns NULL for phenotype files that are empty in
+  # the requested region; we must drop the corresponding covariate / condition
+  # entries before constructing data_list.
+  keep_idx <- !vapply(pheno, is.null, logical(1))
+  if (!any(keep_idx)) {
+    stop(NoPhenotypeError(paste("All phenotype files are empty for the specified region", if (!is.null(region)) "" else region)))
+  }
+  if (any(!keep_idx)) {
+    dropped_conditions <- conditions[!keep_idx]
+    message(paste(
+      "Dropping phenotypes with no data in region", region, ":",
+      paste(dropped_conditions, collapse = ", ")
+    ))
+  }
+  pheno <- pheno[keep_idx]
+  covar <- covar[keep_idx]
+  conditions <- conditions[keep_idx]
   ### including Y ( cov ) and specific X and covar match, filter X variants based on the overlapped samples.
   data_list <- prepare_data_list(geno, pheno, covar, imiss_cutoff,
     maf_cutoff, mac_cutoff, xvar_cutoff,
