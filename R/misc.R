@@ -238,6 +238,35 @@ format_variant_id <- function(names_vector) {
   gsub("_", ":", names_vector)
 }
 
+# Normalize variant ID to format: chr{chrom}:{pos}:{A2}:{A1}
+# Strips "chr" if present, removes build suffix, then adds "chr" prefix
+normalize_variant_id <- function(variant_id) {
+  # Remove "chr" prefix if present
+  variant_id <- gsub("^chr", "", variant_id)
+  # Split by colon to check format
+  parts <- strsplit(variant_id, ":", fixed = TRUE)
+  # Reconstruct with "chr" prefix: chr{chrom}:{pos}:{A2}:{A1}
+  normalized <- sapply(parts, function(p) {
+    n_parts <- length(p)
+    if (n_parts >= 4) {
+      # Has 4+ parts: chrom:pos:A2:A1:build_suffix
+      # Remove build suffix (5th part onwards) and keep first 4
+      paste0("chr", p[1], ":", p[2], ":", p[3], ":", p[4])
+    } else if (n_parts == 3) {
+      # Has 3 parts: chrom:pos:A1 (missing A2) - this is an error case
+      # Return as-is with chr prefix but warn
+      paste0("chr", paste(p, collapse = ":"))
+    } else if (n_parts == 2) {
+      # Has 2 parts: chrom:pos (missing alleles) - this is an error case
+      paste0("chr", paste(p, collapse = ":"))
+    } else {
+      # Unexpected format, return as-is with chr prefix
+      paste0("chr", paste(p, collapse = ":"))
+    }
+  })
+  return(normalized)
+}
+
 #' Converted  Variant ID into a properly structured data frame
 #' @param variant_id A data frame or character vector representing variant IDs.
 #'   Expected formats are a data frame with columns "chrom", "pos", "A1", "A2",
@@ -263,8 +292,31 @@ variant_id_to_df <- function(variant_id) {
   create_dataframe <- function(string) {
     string <- gsub("_", ":", string)
     parts <- strsplit(string, ":", fixed = TRUE)
-    data <- data.frame(do.call(rbind, parts), stringsAsFactors = FALSE)
-    colnames(data) <- c("chrom", "pos", "A2", "A1")
+    # Check how many parts each variant ID has
+    n_parts <- sapply(parts, length)
+    n_parts_unique <- unique(n_parts)
+    
+    # Handle both 4-part (chr:pos:A2:A1) and 5-part (chr:pos:A2:A1:build) formats
+    if (all(n_parts == 4)) {
+      # All have 4 parts
+      data <- data.frame(do.call(rbind, parts), stringsAsFactors = FALSE)
+      colnames(data) <- c("chrom", "pos", "A2", "A1")
+    } else if (all(n_parts == 5)) {
+      # All have 5 parts - drop the build column
+      data <- data.frame(do.call(rbind, parts), stringsAsFactors = FALSE)
+      colnames(data) <- c("chrom", "pos", "A2", "A1", "build")
+      data <- data[, c("chrom", "pos", "A2", "A1"), drop = FALSE]
+    } else if (all(n_parts %in% c(4, 5))) {
+      # Mixed 4 and 5 parts - pad 4-part IDs with empty build, then drop build column
+      parts_padded <- lapply(parts, function(p) {
+        if (length(p) == 4) c(p, "") else p
+      })
+      data <- data.frame(do.call(rbind, parts_padded), stringsAsFactors = FALSE)
+      colnames(data) <- c("chrom", "pos", "A2", "A1", "build")
+      data <- data[, c("chrom", "pos", "A2", "A1"), drop = FALSE]
+    } else {
+      stop("Variant IDs must have 4 or 5 parts (chr:pos:A2:A1 or chr:pos:A2:A1:build), but found parts: ", paste(n_parts_unique, collapse=", "))
+    }
     # Ensure that 'chrom' values are integers
     data$chrom <- ifelse(grepl("^chr", data$chrom),
       as.integer(sub("^chr", "", data$chrom)), # Remove 'chr' and convert to integer

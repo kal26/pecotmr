@@ -224,15 +224,22 @@ rss_analysis_pipeline <- function(
     }
   }
   # Perform quality control
+  # Create a temporary LD_data structure with the processed LD matrix for summary_stats_qc
   if (!is.null(qc_method)) {
-    qc_results <- summary_stats_qc(sumstats, LD_data, n = n, var_y = var_y, method = qc_method)
+    LD_data_processed <- list(combined_LD_matrix = LD_mat)
+    qc_results <- summary_stats_qc(sumstats, LD_data_processed, n = n, var_y = var_y, method = qc_method)
     sumstats <- qc_results$sumstats
     LD_mat <- qc_results$LD_mat
   }
   # Perform imputation
   if (impute) {
+    # Normalize ref_panel variant IDs to match processed sumstats
+    ref_panel_processed <- LD_data$ref_panel
+    if (!is.null(ref_panel_processed) && "variant_id" %in% colnames(ref_panel_processed)) {
+      ref_panel_processed$variant_id <- normalize_variant_id(ref_panel_processed$variant_id)
+    }
     LD_matrix <- partition_LD_matrix(LD_data)
-    impute_results <- raiss(LD_data$ref_panel, sumstats, LD_matrix, rcond = impute_opts$rcond, R2_threshold = impute_opts$R2_threshold, minimum_ld = impute_opts$minimum_ld, lamb = impute_opts$lamb)
+    impute_results <- raiss(ref_panel_processed, sumstats, LD_matrix, rcond = impute_opts$rcond, R2_threshold = impute_opts$R2_threshold, minimum_ld = impute_opts$minimum_ld, lamb = impute_opts$lamb)
     sumstats <- impute_results$result_filter
     LD_mat <- impute_results$LD_mat
   }

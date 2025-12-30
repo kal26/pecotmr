@@ -18,6 +18,7 @@
 #' @importFrom tidyr separate
 #' @importFrom magrittr %>%
 #' @export
+
 rss_basic_qc <- function(sumstats, LD_data, skip_region = NULL, remove_indels = FALSE) {
   # Check if required columns are present in sumstats
   required_cols <- c("chrom", "pos", "A1", "A2")
@@ -53,6 +54,26 @@ rss_basic_qc <- function(sumstats, LD_data, skip_region = NULL, remove_indels = 
   }
 
   sumstats_processed <- allele_flip$target_data_qced %>% arrange(pos)
+
+  # Normalize variant IDs to chr{chrom}:{pos}:{A2}:{A1} format
+  sumstats_processed$variant_id <- normalize_variant_id(sumstats_processed$variant_id)
+  
+  # Normalize LD matrix rownames/colnames
+  ld_rownames <- rownames(LD_data$combined_LD_matrix)
+  ld_colnames <- colnames(LD_data$combined_LD_matrix)
+  if (!is.null(ld_rownames)) {
+    ld_rownames_normalized <- normalize_variant_id(ld_rownames)
+    rownames(LD_data$combined_LD_matrix) <- ld_rownames_normalized
+  }
+  if (!is.null(ld_colnames)) {
+    ld_colnames_normalized <- normalize_variant_id(ld_colnames)
+    colnames(LD_data$combined_LD_matrix) <- ld_colnames_normalized
+  }
+  
+  # Update combined_LD_variants to match
+  if (!is.null(LD_data$combined_LD_variants)) {
+    LD_data$combined_LD_variants <- normalize_variant_id(LD_data$combined_LD_variants)
+  }
 
   LD_mat_processed <- LD_data$combined_LD_matrix[sumstats_processed$variant_id, sumstats_processed$variant_id, drop = FALSE]
 

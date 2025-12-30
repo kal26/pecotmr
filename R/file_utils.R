@@ -230,20 +230,29 @@ load_phenotype_data <- function(phenotype_path, region, extract_region_name = NU
       message(paste("Phenotype file ", .x, " is empty for the specified region", if (!is.null(region)) "" else region))
       return(NULL)
     }
-    if (!is.null(.y) && is.vector(.y) && !is.null(region_name_col) && (region_name_col %% 1 == 0)) {
+    # Transpose phenotype data: rows become columns (samples), columns become rows (genes + metadata)
+    tabix_data_transposed <- if (!is.null(.y) && is.vector(.y) && !is.null(region_name_col) && (region_name_col %% 1 == 0)) {
+      # Filter by extract_region_name if provided
       if (region_name_col <= ncol(tabix_data)) {
         region_col_name <- colnames(tabix_data)[region_name_col]
-        tabix_data <- tabix_data %>%
+        tabix_data %>%
           filter(.data[[region_col_name]] %in% .y) %>%
           t()
-        colnames(tabix_data) <- tabix_data[region_name_col, ]
-        return(tabix_data)
       } else {
         stop("region_name_col is out of bounds for the number of columns in tabix_data.")
       }
     } else {
-      return(tabix_data %>% t())
+      # No filtering, just transpose
+      tabix_data %>% t()
     }
+    
+    # Set colnames from region_name_col row (contains gene IDs) if region_name_col is provided
+    # After transposing, the gene ID column becomes a row at position region_name_col
+    if (!is.null(region_name_col) && (region_name_col %% 1 == 0) && region_name_col <= nrow(tabix_data_transposed)) {
+      colnames(tabix_data_transposed) <- tabix_data_transposed[region_name_col, ]
+    }
+    
+    return(tabix_data_transposed)
   })
 
   # Check if all phenotype files are empty (all elements NULL)
@@ -310,6 +319,7 @@ prepare_data_list <- function(geno_bed, phenotype, covariate, imiss_cutoff, maf_
         maf_val <- max(maf_cutoff, mac_val)
         filtered_data <- filter_X(filtered_geno_bed, imiss_cutoff, maf_val, var_thresh = xvar_cutoff)
         colnames(filtered_data) <- format_variant_id(colnames(filtered_data)) # Format column names right after filtering
+        colnames(filtered_data) <- normalize_variant_id(colnames(filtered_data)) # Normalize to chr{chrom}:{pos}:{A2}:{A1} format
         filtered_data
       })
     ) %>%
@@ -335,6 +345,8 @@ prepare_X_matrix <- function(geno_bed, data_list, imiss_cutoff, maf_cutoff, mac_
   # Apply further filtering on X
   X_filtered <- filter_X(X_filtered, imiss_cutoff, maf_val, xvar_cutoff)
   colnames(X_filtered) <- format_variant_id(colnames(X_filtered))
+  # Normalize variant IDs to chr{chrom}:{pos}:{A2}:{A1} format
+  colnames(X_filtered) <- normalize_variant_id(colnames(X_filtered))
 
   # To keep a log message
   variants <- as.data.frame(do.call(rbind, lapply(format_variant_id(colnames(X_filtered)), function(x) strsplit(x, ":")[[1]][1:2])), stringsAsFactors = FALSE)
@@ -373,17 +385,30 @@ add_X_residuals <- function(data_list, scale_residuals = FALSE) {
 #' @noRd
 add_Y_residuals <- function(data_list, conditions, scale_residuals = FALSE) {
   # Compute residuals, their mean, and standard deviation, and add them to data_list
+  # Preserve colnames from original Y (gene IDs) through the residual computation
   data_list <- data_list %>%
     mutate(
-      lm_res = map2(Y, covar, ~ .lm.fit(x = cbind(1, .y), y = .x)$residuals %>% as.matrix()),
+      lm_res = map2(Y, covar, function(y, cov) {
+        res <- .lm.fit(x = cbind(1, cov), y = y)$residuals %>% as.matrix()
+        # Preserve colnames from original Y (gene IDs)
+        if (!is.null(colnames(y))) {
+          colnames(res) <- colnames(y)
+        }
+        return(res)
+      }),
       Y_resid_mean = map(lm_res, ~ apply(.x, 2, mean)),
       Y_resid_sd = map(lm_res, ~ apply(.x, 2, sd)),
-      Y_resid = map(lm_res, ~ {
+      Y_resid = map2(lm_res, Y, function(lm, y_orig) {
         if (scale_residuals) {
-          scale(.x)
+          res <- scale(lm)
         } else {
-          .x
+          res <- lm
         }
+        # Preserve colnames from original Y (gene IDs)
+        if (!is.null(colnames(y_orig))) {
+          colnames(res) <- colnames(y_orig)
+        }
+        return(res)
       })
     )
 

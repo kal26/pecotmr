@@ -76,22 +76,29 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
   } else {
         target_data <- variant_id_to_df(target_data)
   }
+  
   ref_variants <- variant_id_to_df(ref_variants)
+  
   columns_to_remove <- c("chromosome", "position", "ref", "alt", "variant_id")
 
   # Check if any of the specified columns are present
   if (any(columns_to_remove %in% colnames(target_data))) {
     target_data <- select(target_data, -any_of(columns_to_remove))
   }
+  
   match_result <- merge(target_data, ref_variants, by = c("chrom", "pos"), all = FALSE, suffixes = c(".target", ".ref")) %>% as.data.frame()
   if (nrow(match_result) == 0) {
     warning("No matching variants found between target data and reference variants.") 
     return(list(target_data_qced = match_result, qc_summary = match_result))
   }
-    # match target & ref by chrom and position
+  
+  # match target & ref by chrom and position
   match_result = match_result %>%
     mutate(variants_id_original = paste(chrom, pos, A2.target, A1.target, sep = ":")) %>%
-    mutate(variants_id_qced = paste(chrom, pos, A2.ref, A1.ref, sep = ":")) %>%
+    mutate(variants_id_qced = paste(chrom, pos, A2.ref, A1.ref, sep = ":"))
+  
+  
+  match_result = match_result %>%
     # filter out totally same rows.
     filter(duplicated(.) | !duplicated(.)) %>%
     # upper case target/reference A1 A2
@@ -175,12 +182,18 @@ allele_qc <- function(target_data, ref_variants, col_to_flip = NULL,
     }
   }
 
+  # Normalize variant_id to chr{chrom}:{pos}:{A2}:{A1} format
+  result$variant_id <- normalize_variant_id(result$variant_id)
+  
   if (!remove_unmatched) {
     match_variant <- result %>% pull(variants_id_original)
     match_result <- select(match_result, -(flip1.ref:keep)) %>%
       select(-variants_id_original, -A1.target, -A2.target) %>%
       rename(A1 = A1.ref, A2 = A2.ref, variant_id = variants_id_qced)
+    # Normalize variant_id to chr{chrom}:{pos}:{A2}:{A1} format
+    match_result$variant_id <- normalize_variant_id(match_result$variant_id)
     target_data <- target_data %>% mutate(variant_id = paste(chrom, pos, A2, A1, sep = ":"))
+    target_data$variant_id <- normalize_variant_id(target_data$variant_id)
     if (length(setdiff(target_data %>% pull(variant_id), match_variant)) > 0) {
       unmatch_data <- target_data %>% filter(!variant_id %in% match_variant)
       result <- rbind(result, unmatch_data %>% mutate(variants_id_original = variant_id))
